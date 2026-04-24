@@ -1,8 +1,8 @@
 # GophKeeper
 
-![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)
+[![Go](https://img.shields.io/github/go-mod/go-version/avc-dev/gophkeeper?logo=go)](go.mod)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Coverage](https://img.shields.io/badge/coverage-≥70%25-brightgreen)
+[![Coverage](https://codecov.io/gh/avc-dev/gophkeeper/branch/main/graph/badge.svg)](https://codecov.io/gh/avc-dev/gophkeeper)
 
 Клиент-серверный менеджер паролей с zero-knowledge архитектурой. Все секреты шифруются на клиенте до отправки на сервер — сервер никогда не видит данные в открытом виде.
 

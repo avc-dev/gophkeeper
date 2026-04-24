@@ -21,3 +21,8 @@ jobs:
 
       - name: Покрытие
         run: go tool cover -func=coverage.out | grep total
+
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
