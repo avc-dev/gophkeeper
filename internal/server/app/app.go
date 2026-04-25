@@ -11,7 +11,10 @@ import (
 	"github.com/avc-dev/gophkeeper/internal/server/config"
 	"github.com/avc-dev/gophkeeper/internal/server/handler"
 	authhandler "github.com/avc-dev/gophkeeper/internal/server/handler/auth"
+	secrethandler "github.com/avc-dev/gophkeeper/internal/server/handler/secret"
 	authsvc "github.com/avc-dev/gophkeeper/internal/server/service/auth"
+	secretsvc "github.com/avc-dev/gophkeeper/internal/server/service/secret"
+	secretstore "github.com/avc-dev/gophkeeper/internal/server/storage/secret"
 	userstore "github.com/avc-dev/gophkeeper/internal/server/storage/user"
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,10 +36,14 @@ func Run(cfg config.Config, log *slog.Logger) error {
 	users := userstore.New(db)
 	auth := authsvc.New(users, cfg.JWTSecret)
 
+	secrets := secretstore.New(db)
+	secretService := secretsvc.New(secrets)
+
 	srv := grpc.NewServer(
 		grpc.UnaryInterceptor(handler.AuthInterceptor(auth)),
 	)
 	pb.RegisterAuthServiceServer(srv, authhandler.New(auth))
+	pb.RegisterSecretsServiceServer(srv, secrethandler.New(secretService))
 
 	lis, err := net.Listen("tcp", cfg.Addr)
 	if err != nil {

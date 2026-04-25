@@ -58,3 +58,8 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	id, ok := ctx.Value(ctxUserID).(uuid.UUID)
 	return id, ok
 }
+
+// WithUserID помещает user_id в контекст (используется в тестах и AuthInterceptor).
+func WithUserID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxUserID, id)
+}
