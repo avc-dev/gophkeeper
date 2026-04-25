@@ -1,69 +1,76 @@
 package crypto
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDeriveKey_Deterministic(t *testing.T) {
-	salt := make([]byte, SaltSize)
-	password := "мой-мастер-пароль"
-
-	k1 := DeriveKey(password, salt)
-	k2 := DeriveKey(password, salt)
-
-	if !bytes.Equal(k1, k2) {
-		t.Fatal("DeriveKey не детерминирован: одинаковые входы дали разные ключи")
-	}
-}
-
-func TestDeriveKey_Length(t *testing.T) {
-	key := DeriveKey("password", make([]byte, SaltSize))
-	if len(key) != keySize {
-		t.Fatalf("длина ключа %d, ожидалось %d", len(key), keySize)
-	}
-}
-
-func TestDeriveKey_DifferentSalt(t *testing.T) {
-	salt1 := make([]byte, SaltSize)
-	salt2 := make([]byte, SaltSize)
-	salt2[0] = 1
-
-	k1 := DeriveKey("password", salt1)
-	k2 := DeriveKey("password", salt2)
-
-	if bytes.Equal(k1, k2) {
-		t.Fatal("разные соли дали одинаковый ключ")
-	}
-}
-
-func TestDeriveKey_DifferentPassword(t *testing.T) {
+func TestDeriveKey(t *testing.T) {
 	salt := make([]byte, SaltSize)
 
-	k1 := DeriveKey("password1", salt)
-	k2 := DeriveKey("password2", salt)
+	tests := []struct {
+		name         string
+		password     string
+		salt         []byte
+		wantLen      int
+		wantSameAs   []byte // если задан — ключ должен совпасть
+		wantDiffFrom []byte // если задан — ключ должен отличаться
+	}{
+		{
+			name:       "детерминированность",
+			password:   "my-password",
+			salt:       salt,
+			wantLen:    keySize,
+			wantSameAs: DeriveKey("my-password", salt),
+		},
+		{
+			name:         "разные пароли дают разные ключи",
+			password:     "password-2",
+			salt:         salt,
+			wantLen:      keySize,
+			wantDiffFrom: DeriveKey("password-1", salt),
+		},
+		{
+			name:         "разные соли дают разные ключи",
+			password:     "password",
+			salt:         func() []byte { s := make([]byte, SaltSize); s[0] = 1; return s }(),
+			wantLen:      keySize,
+			wantDiffFrom: DeriveKey("password", salt),
+		},
+	}
 
-	if bytes.Equal(k1, k2) {
-		t.Fatal("разные пароли дали одинаковый ключ")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := DeriveKey(tt.password, tt.salt)
+
+			assert.Len(t, key, tt.wantLen)
+
+			if tt.wantSameAs != nil {
+				assert.Equal(t, tt.wantSameAs, key)
+			}
+			if tt.wantDiffFrom != nil {
+				assert.NotEqual(t, tt.wantDiffFrom, key)
+			}
+		})
 	}
 }
 
-func TestGenerateSalt_Length(t *testing.T) {
-	salt, err := GenerateSalt()
-	if err != nil {
-		t.Fatalf("GenerateSalt: %v", err)
-	}
+func TestGenerateSalt(t *testing.T) {
+	t.Run("корректная длина", func(t *testing.T) {
+		salt, err := GenerateSalt()
+		require.NoError(t, err)
+		assert.Len(t, salt, SaltSize)
+	})
 
-	if len(salt) != SaltSize {
-		t.Fatalf("длина соли %d, ожидалось %d", len(salt), SaltSize)
-	}
-}
+	t.Run("уникальность", func(t *testing.T) {
+		s1, err := GenerateSalt()
+		require.NoError(t, err)
 
-func TestGenerateSalt_Uniqueness(t *testing.T) {
-	s1, _ := GenerateSalt()
-	s2, _ := GenerateSalt()
+		s2, err := GenerateSalt()
+		require.NoError(t, err)
 
-	if bytes.Equal(s1, s2) {
-		t.Fatal("две соли совпадают — генератор не случаен")
-	}
+		assert.NotEqual(t, s1, s2)
+	})
 }

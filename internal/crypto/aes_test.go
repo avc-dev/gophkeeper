@@ -3,6 +3,9 @@ package crypto
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func makeKey() []byte {
@@ -13,111 +16,110 @@ func makeKey() []byte {
 	return key
 }
 
-func TestEncryptDecrypt_RoundTrip(t *testing.T) {
+func TestEncryptDecrypt(t *testing.T) {
 	key := makeKey()
-	plaintext := []byte("секретные данные")
-	aad := []byte("record-id-123")
 
-	ciphertext, err := Encrypt(key, plaintext, aad)
-	if err != nil {
-		t.Fatalf("Encrypt: %v", err)
+	tests := []struct {
+		name      string
+		plaintext []byte
+		aad       []byte
+	}{
+		{
+			name:      "обычные данные",
+			plaintext: []byte("секретные данные"),
+			aad:       []byte("record-id-123"),
+		},
+		{
+			name:      "пустой plaintext",
+			plaintext: []byte{},
+			aad:       []byte("id"),
+		},
+		{
+			name:      "nil aad",
+			plaintext: []byte("data"),
+			aad:       nil,
+		},
 	}
 
-	if len(ciphertext) <= nonceSize {
-		t.Fatal("зашифрованные данные слишком короткие")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ct, err := Encrypt(key, tt.plaintext, tt.aad)
+			require.NoError(t, err)
+			assert.Greater(t, len(ct), nonceSize)
 
-	got, err := Decrypt(key, ciphertext, aad)
-	if err != nil {
-		t.Fatalf("Decrypt: %v", err)
-	}
-
-	if !bytes.Equal(got, plaintext) {
-		t.Fatalf("got %q, want %q", got, plaintext)
+			got, err := Decrypt(key, ct, tt.aad)
+			require.NoError(t, err)
+			// bytes.Equal корректно обрабатывает nil == []byte{}
+			assert.True(t, bytes.Equal(tt.plaintext, got))
+		})
 	}
 }
 
-func TestEncrypt_DifferentNonceEachCall(t *testing.T) {
+func TestEncrypt_UniqueNonce(t *testing.T) {
 	key := makeKey()
 	plaintext := []byte("одинаковый текст")
-	aad := []byte("id")
 
-	ct1, _ := Encrypt(key, plaintext, aad)
-	ct2, _ := Encrypt(key, plaintext, aad)
+	ct1, err := Encrypt(key, plaintext, nil)
+	require.NoError(t, err)
 
-	if bytes.Equal(ct1, ct2) {
-		t.Fatal("два шифрования дали одинаковый результат — nonce не случаен")
+	ct2, err := Encrypt(key, plaintext, nil)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, ct1, ct2, "два шифрования не должны давать одинаковый результат")
+}
+
+func TestDecrypt_Errors(t *testing.T) {
+	key := makeKey()
+	ct, err := Encrypt(key, []byte("данные"), []byte("id"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		key  []byte
+		data []byte
+		aad  []byte
+	}{
+		{
+			name: "неверный размер ключа",
+			key:  []byte("short"),
+			data: ct,
+			aad:  []byte("id"),
+		},
+		{
+			name: "слишком короткие данные",
+			key:  key,
+			data: []byte("short"),
+			aad:  []byte("id"),
+		},
+		{
+			name: "повреждённый ciphertext",
+			key:  key,
+			data: func() []byte { c := append([]byte{}, ct...); c[len(c)-1] ^= 0xFF; return c }(),
+			aad:  []byte("id"),
+		},
+		{
+			name: "неверный aad",
+			key:  key,
+			data: ct,
+			aad:  []byte("wrong-id"),
+		},
+		{
+			name: "неверный ключ",
+			key:  make([]byte, 32),
+			data: ct,
+			aad:  []byte("id"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Decrypt(tt.key, tt.data, tt.aad)
+			require.Error(t, err)
+		})
 	}
 }
 
 func TestEncrypt_BadKeySize(t *testing.T) {
 	_, err := Encrypt([]byte("short"), []byte("data"), nil)
-	if err == nil {
-		t.Fatal("ожидалась ошибка при неверном размере ключа")
-	}
-}
-
-func TestDecrypt_TooShortData(t *testing.T) {
-	_, err := Decrypt(makeKey(), []byte("short"), nil)
-	if err == nil {
-		t.Fatal("ожидалась ошибка на слишком коротких данных")
-	}
-}
-
-func TestDecrypt_BadKeySize(t *testing.T) {
-	data := make([]byte, nonceSize+16)
-	_, err := Decrypt([]byte("short"), data, nil)
-	if err == nil {
-		t.Fatal("ожидалась ошибка при неверном размере ключа")
-	}
-}
-
-func TestDecrypt_TamperedCiphertext(t *testing.T) {
-	key := makeKey()
-	ct, _ := Encrypt(key, []byte("данные"), []byte("id"))
-
-	ct[len(ct)-1] ^= 0xFF // портим последний байт тега
-
-	_, err := Decrypt(key, ct, []byte("id"))
-	if err == nil {
-		t.Fatal("ожидалась ошибка при повреждённом ciphertext")
-	}
-}
-
-func TestDecrypt_WrongAAD(t *testing.T) {
-	key := makeKey()
-	ct, _ := Encrypt(key, []byte("данные"), []byte("correct-id"))
-
-	_, err := Decrypt(key, ct, []byte("wrong-id"))
-	if err == nil {
-		t.Fatal("ожидалась ошибка при неверном aad")
-	}
-}
-
-func TestDecrypt_WrongKey(t *testing.T) {
-	key := makeKey()
-	ct, _ := Encrypt(key, []byte("данные"), []byte("id"))
-
-	wrongKey := make([]byte, 32)
-	_, err := Decrypt(wrongKey, ct, []byte("id"))
-	if err == nil {
-		t.Fatal("ожидалась ошибка при неверном ключе")
-	}
-}
-
-func TestEncryptDecrypt_EmptyPlaintext(t *testing.T) {
-	key := makeKey()
-	ct, err := Encrypt(key, []byte{}, []byte("id"))
-	if err != nil {
-		t.Fatalf("Encrypt пустого plaintext: %v", err)
-	}
-
-	got, err := Decrypt(key, ct, []byte("id"))
-	if err != nil {
-		t.Fatalf("Decrypt пустого plaintext: %v", err)
-	}
-
-	if len(got) != 0 {
-		t.Fatalf("ожидался пустой plaintext, got %q", got)
-	}
+	require.Error(t, err)
 }
