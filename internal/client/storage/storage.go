@@ -23,7 +23,7 @@ func Open(path string) (*sql.DB, error) {
 			return nil, fmt.Errorf("create db dir: %w", err)
 		}
 		if err := restrictPermissions(path); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("set permissions: %w", err)
 		}
 	}
 
@@ -37,12 +37,12 @@ func Open(path string) (*sql.DB, error) {
 
 	if err := applyPragmas(db); err != nil {
 		db.Close()
-		return nil, err
+		return nil, fmt.Errorf("init pragmas: %w", err)
 	}
 
 	if err := applySchema(db); err != nil {
 		db.Close()
-		return nil, err
+		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
 	return db, nil

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/avc-dev/gophkeeper/internal/client/storage"
 	"github.com/avc-dev/gophkeeper/internal/crypto"
@@ -91,6 +92,33 @@ func (s *AuthService) Token(ctx context.Context) (string, error) {
 		return "", ErrNotLoggedIn
 	}
 	return token, nil
+}
+
+// GetLastSyncAt возвращает время последней успешной синхронизации или nil.
+func (s *AuthService) GetLastSyncAt(ctx context.Context) (*time.Time, error) {
+	v, err := s.authStore.Get(ctx, keyLastSyncAt)
+	if err != nil {
+		return nil, fmt.Errorf("read last_sync_at: %w", err)
+	}
+	if v == "" {
+		// nilnil в данном случае допустим,
+		// поскольку предыдущей синхронизации может не быть,
+		// и это не является ошибкой
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return nil, fmt.Errorf("parse last_sync_at: %w", err)
+	}
+	return &t, nil
+}
+
+// SetLastSyncAt сохраняет время последней синхронизации.
+func (s *AuthService) SetLastSyncAt(ctx context.Context, t time.Time) error {
+	if err := s.authStore.Set(ctx, keyLastSyncAt, t.UTC().Format(time.RFC3339Nano)); err != nil {
+		return fmt.Errorf("set last_sync_at: %w", err)
+	}
+	return nil
 }
 
 // Logout удаляет локальные учётные данные.

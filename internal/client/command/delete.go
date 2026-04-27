@@ -19,7 +19,7 @@ func newDeleteCmd() *cobra.Command {
 
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 
 			if err := state.secretSvc.Delete(authedCtx, name, typ); err != nil {

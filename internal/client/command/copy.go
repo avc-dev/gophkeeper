@@ -26,12 +26,12 @@ For card: copies the card number (--field number) or CVV (--field cvv).`,
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 

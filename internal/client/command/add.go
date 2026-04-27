@@ -35,18 +35,18 @@ func newAddCredentialCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 
 			if err := state.secretSvc.AddCredential(authedCtx, masterKey, name, login, password, url, note); err != nil {
@@ -79,25 +79,25 @@ func newAddCardCmd() *cobra.Command {
 			ctx := cmd.Context()
 
 			if err := service.ValidateCard(number, expiry, cvv); err != nil {
-				return err
+				return err // sentinel errors с понятным сообщением
 			}
 
 			if masterPwd == "" {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 
 			if err := state.secretSvc.AddCard(authedCtx, masterKey, name, number, holder, expiry, cvv, bank, note); err != nil {
@@ -148,18 +148,18 @@ func newAddTextCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 
 			if err := state.secretSvc.AddText(authedCtx, masterKey, name, content, note); err != nil {
@@ -196,18 +196,18 @@ func newAddBinaryCmd() *cobra.Command {
 			if masterPwd == "" {
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 
 			if err := state.secretSvc.AddBinary(authedCtx, masterKey, name, file, data, note); err != nil {

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/avc-dev/gophkeeper/internal/domain"
@@ -62,19 +63,19 @@ func scanSecret(rows *sql.Rows) (*LocalSecret, error) {
 		&s.Deleted,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan secret row: %w", err)
 	}
 
 	t, err := time.Parse(time.RFC3339Nano, updatedAt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse updated_at: %w", err)
 	}
 	s.UpdatedAt = t
 
 	if serverID.Valid {
 		id, err := uuid.Parse(serverID.String)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse server_id: %w", err)
 		}
 		s.ServerID = &id
 	}
@@ -82,7 +83,7 @@ func scanSecret(rows *sql.Rows) (*LocalSecret, error) {
 	if serverUpdatedAt.Valid {
 		t, err := time.Parse(time.RFC3339Nano, serverUpdatedAt.String)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse server_updated_at: %w", err)
 		}
 		s.ServerUpdatedAt = &t
 	}

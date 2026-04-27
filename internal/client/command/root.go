@@ -53,6 +53,7 @@ All secrets are encrypted on the client before being sent to the server.`,
 	root.AddCommand(
 		newRegisterCmd(),
 		newLoginCmd(),
+		newSyncCmd(),
 		newAddCmd(),
 		newGetCmd(),
 		newListCmd(),
@@ -114,7 +115,7 @@ func cleanupApp(ctx context.Context) error {
 func authedContext(ctx context.Context) (context.Context, error) {
 	token, err := state.authService.Token(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build auth context: %w", err)
 	}
 	md := metadata.Pairs("authorization", "Bearer "+token)
 	return metadata.NewOutgoingContext(ctx, md), nil

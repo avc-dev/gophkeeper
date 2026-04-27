@@ -37,12 +37,12 @@ func newGetCredentialCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
@@ -84,12 +84,12 @@ func newGetCardCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
@@ -137,12 +137,12 @@ func newGetTextCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 
@@ -174,12 +174,12 @@ func newGetBinaryCmd() *cobra.Command {
 				var err error
 				masterPwd, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return err
+				return fmt.Errorf("derive master key: %w", err)
 			}
 			defer zeroKey(masterKey)
 

@@ -19,7 +19,7 @@ func newRegisterCmd() *cobra.Command {
 				var err error
 				password, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 

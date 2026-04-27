@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 
+	"github.com/avc-dev/gophkeeper/internal/client/service"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ func newLoginCmd() *cobra.Command {
 				var err error
 				password, err = readPassword("Master password: ")
 				if err != nil {
-					return err
+					return fmt.Errorf("read password: %w", err)
 				}
 			}
 
@@ -32,7 +33,7 @@ func newLoginCmd() *cobra.Command {
 			// сразу синхронизируем все секреты с сервера.
 			authedCtx, err := authedContext(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("auth: %w", err)
 			}
 			if err := state.secretSvc.Sync(authedCtx, masterKey, nil); err != nil {
 				// не критично — локальный кеш мог быть пустым.
@@ -52,8 +53,4 @@ func newLoginCmd() *cobra.Command {
 }
 
 // zeroKey обнуляет master key в памяти после использования.
-func zeroKey(key []byte) {
-	for i := range key {
-		key[i] = 0
-	}
-}
+func zeroKey(key []byte) { service.ZeroKey(key) }
