@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -102,6 +101,3 @@ func checkAffected(res sql.Result, op string) error {
 	}
 	return nil
 }
-
-// defaultCtx используется только в helper-функциях без контекста — в продакшн коде всегда передаём ctx явно.
-func withCtx(ctx context.Context) context.Context { return ctx }

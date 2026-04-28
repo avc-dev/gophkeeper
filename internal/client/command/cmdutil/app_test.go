@@ -135,6 +135,27 @@ func TestResolveMasterKey_LoggedIn(t *testing.T) {
 	assert.Len(t, key, 32)
 }
 
+func TestResolveMasterKey_EmptyPassword_ReadsFromPipe(t *testing.T) {
+	authMock := &mockAuthGRPC{
+		loginResp: &pb.LoginResponse{Token: "tok", KdfSalt: make([]byte, 32)},
+	}
+	app := newTestApp(t, authMock)
+	_, err := app.AuthSvc.Login(context.Background(), "u@u.com", "pass")
+	require.NoError(t, err)
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	old := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = old }()
+	go func() { _, _ = w.WriteString("pass\n"); w.Close() }()
+
+	// empty pwd → ReadPassword called → reads "pass" from pipe → derives key
+	key, err := app.ResolveMasterKey(context.Background(), "")
+	require.NoError(t, err)
+	assert.Len(t, key, 32)
+}
+
 // ─── ReadPassword (non-terminal path via stdin pipe) ─────────────────────────
 
 func TestReadPassword_FromPipe(t *testing.T) {
