@@ -91,5 +91,17 @@ func scanSecret(rows *sql.Rows) (*LocalSecret, error) {
 	return &s, nil
 }
 
+// checkAffected возвращает ErrSecretNotFound если ни одна строка не затронута операцией.
+func checkAffected(res sql.Result, op string) error {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s rows affected: %w", op, err)
+	}
+	if n == 0 {
+		return domain.ErrSecretNotFound
+	}
+	return nil
+}
+
 // defaultCtx используется только в helper-функциях без контекста — в продакшн коде всегда передаём ctx явно.
 func withCtx(ctx context.Context) context.Context { return ctx }

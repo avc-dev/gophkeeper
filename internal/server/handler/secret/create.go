@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/avc-dev/gophkeeper/internal/domain"
-	"github.com/avc-dev/gophkeeper/internal/server/handler"
+	"github.com/avc-dev/gophkeeper/internal/protoconv"
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,13 +16,13 @@ func (h *Handler) CreateSecret(ctx context.Context, req *pb.CreateSecretRequest)
 		return nil, status.Error(codes.InvalidArgument, "name and payload are required")
 	}
 
-	userID, ok := handler.UserIDFromContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "missing user id")
+	userID, err := extractUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	sec, err := h.svc.Create(ctx, userID, &domain.Secret{
-		Type:     typeToDomain(req.Type),
+		Type:     protoconv.TypeToDomain(req.Type),
 		Name:     req.Name,
 		Payload:  req.EncryptedPayload,
 		Metadata: req.Metadata,

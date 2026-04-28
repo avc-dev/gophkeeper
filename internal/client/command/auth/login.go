@@ -1,13 +1,13 @@
-package command
+package auth
 
 import (
 	"fmt"
 
-	"github.com/avc-dev/gophkeeper/internal/client/service"
+	"github.com/avc-dev/gophkeeper/internal/client/command/cmdutil"
 	"github.com/spf13/cobra"
 )
 
-func newLoginCmd() *cobra.Command {
+func NewLoginCmd(app *cmdutil.App) *cobra.Command {
 	var email, password string
 
 	cmd := &cobra.Command{
@@ -18,25 +18,23 @@ func newLoginCmd() *cobra.Command {
 
 			if password == "" {
 				var err error
-				password, err = readPassword("Master password: ")
+				password, err = cmdutil.ReadPassword("Master password: ")
 				if err != nil {
 					return fmt.Errorf("read password: %w", err)
 				}
 			}
 
-			masterKey, err := state.authService.Login(ctx, email, password)
+			masterKey, err := app.AuthSvc.Login(ctx, email, password)
 			if err != nil {
 				return fmt.Errorf("login failed: %w", err)
 			}
-			defer zeroKey(masterKey)
+			defer cmdutil.ZeroKey(masterKey)
 
-			// сразу синхронизируем все секреты с сервера.
-			authedCtx, err := authedContext(ctx)
+			authedCtx, err := app.AuthedContext(ctx)
 			if err != nil {
 				return fmt.Errorf("auth: %w", err)
 			}
-			if err := state.secretSvc.Sync(authedCtx, masterKey, nil); err != nil {
-				// не критично — локальный кеш мог быть пустым.
+			if err := app.SecretSvc.Sync(authedCtx, masterKey, nil); err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: sync failed: %v\n", err)
 			}
 
@@ -51,6 +49,3 @@ func newLoginCmd() *cobra.Command {
 
 	return cmd
 }
-
-// zeroKey обнуляет master key в памяти после использования.
-func zeroKey(key []byte) { service.ZeroKey(key) }

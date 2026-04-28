@@ -1,13 +1,14 @@
-package command
+package secret
 
 import (
 	"fmt"
 
 	"github.com/atotto/clipboard"
+	"github.com/avc-dev/gophkeeper/internal/client/command/cmdutil"
 	"github.com/spf13/cobra"
 )
 
-func newCopyCmd() *cobra.Command {
+func NewCopyCmd(app *cmdutil.App) *cobra.Command {
 	var masterPwd, field string
 
 	cmd := &cobra.Command{
@@ -22,29 +23,22 @@ For card: copies the card number (--field number) or CVV (--field cvv).`,
 			typStr := args[0]
 			name := args[1]
 
-			if masterPwd == "" {
-				var err error
-				masterPwd, err = readPassword("Master password: ")
-				if err != nil {
-					return fmt.Errorf("read password: %w", err)
-				}
-			}
-			masterKey, err := state.authService.DeriveMasterKey(ctx, masterPwd)
+			masterKey, err := app.ResolveMasterKey(ctx, masterPwd)
 			if err != nil {
-				return fmt.Errorf("derive master key: %w", err)
+				return err
 			}
-			defer zeroKey(masterKey)
+			defer cmdutil.ZeroKey(masterKey)
 
 			var value string
 			switch typStr {
 			case "credential":
-				p, err := state.secretSvc.GetCredential(ctx, masterKey, name)
+				p, err := app.SecretSvc.GetCredential(ctx, masterKey, name)
 				if err != nil {
 					return fmt.Errorf("get credential: %w", err)
 				}
 				value = p.Password
 			case "card":
-				p, err := state.secretSvc.GetCard(ctx, masterKey, name)
+				p, err := app.SecretSvc.GetCard(ctx, masterKey, name)
 				if err != nil {
 					return fmt.Errorf("get card: %w", err)
 				}
@@ -66,7 +60,7 @@ For card: copies the card number (--field number) or CVV (--field cvv).`,
 		},
 	}
 
-	cmd.Flags().StringVar(&masterPwd, "master-password", "", "Master password (prompted if omitted)")
+	cmdutil.AddMasterPasswordFlag(cmd, &masterPwd)
 	cmd.Flags().StringVar(&field, "field", "password", "Field to copy for card: number, cvv")
 	return cmd
 }

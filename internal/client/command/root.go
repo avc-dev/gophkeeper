@@ -2,38 +2,35 @@
 package command
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"os"
 
+	authcmd "github.com/avc-dev/gophkeeper/internal/client/command/auth"
+	"github.com/avc-dev/gophkeeper/internal/client/command/cmdutil"
+	secretcmd "github.com/avc-dev/gophkeeper/internal/client/command/secret"
 	"github.com/avc-dev/gophkeeper/internal/client/config"
-	"github.com/avc-dev/gophkeeper/internal/client/service"
+	authsvc "github.com/avc-dev/gophkeeper/internal/client/service/auth"
+	secretsvc "github.com/avc-dev/gophkeeper/internal/client/service/secret"
 	"github.com/avc-dev/gophkeeper/internal/client/storage"
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 )
-
-// app — состояние приложения, инициализируется в PersistentPreRunE.
-type app struct {
-	db          *sql.DB
-	authService *service.AuthService
-	secretSvc   *service.SecretService
-	conn        *grpc.ClientConn
-	cfg         config.Config
-}
-
-var state *app
 
 // NewRootCmd строит и возвращает корневую cobra-команду.
 func NewRootCmd(version, buildTime string) *cobra.Command {
+	app := &cmdutil.App{}
+
+	var (
+		db   *sql.DB
+		conn *grpc.ClientConn
+	)
+
 	root := &cobra.Command{
 		Use:   "gophkeeper",
 		Short: "Zero-knowledge password manager",
@@ -43,96 +40,63 @@ All secrets are encrypted on the client before being sent to the server.`,
 	}
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		// команды, не требующие инициализации (version, help).
 		if cmd.Name() == "version" || cmd.Name() == "help" {
 			return nil
 		}
-		return initApp(cmd.Context())
+
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+
+		db, err = storage.Open(cfg.DBPath)
+		if err != nil {
+			return fmt.Errorf("open local db: %w", err)
+		}
+
+		dialCreds, err := buildTransportCredentials(cfg)
+		if err != nil {
+			_ = db.Close()
+			return fmt.Errorf("tls credentials: %w", err)
+		}
+
+		conn, err = grpc.NewClient(cfg.ServerAddr, grpc.WithTransportCredentials(dialCreds))
+		if err != nil {
+			_ = db.Close()
+			return fmt.Errorf("connect to server %s: %w", cfg.ServerAddr, err)
+		}
+
+		app.AuthSvc = authsvc.New(pb.NewAuthServiceClient(conn), storage.NewAuthStorage(db))
+		app.SecretSvc = secretsvc.New(pb.NewSecretsServiceClient(conn), storage.NewSecretStorage(db))
+		return nil
 	}
+
 	root.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
-		return cleanupApp(cmd.Context())
+		if db == nil {
+			return nil
+		}
+		_ = storage.Checkpoint(cmd.Context(), db)
+		_ = conn.Close()
+		_ = db.Close()
+		db = nil
+		return nil
 	}
 
 	root.AddCommand(
-		newRegisterCmd(),
-		newLoginCmd(),
-		newSyncCmd(),
-		newAddCmd(),
-		newGetCmd(),
-		newListCmd(),
-		newDeleteCmd(),
-		newCopyCmd(),
+		authcmd.NewRegisterCmd(app),
+		authcmd.NewLoginCmd(app),
+		secretcmd.NewSyncCmd(app),
+		secretcmd.NewAddCmd(app),
+		secretcmd.NewGetCmd(app),
+		secretcmd.NewListCmd(app),
+		secretcmd.NewDeleteCmd(app),
+		secretcmd.NewCopyCmd(app),
 		newVersionCmd(version, buildTime),
 	)
 	return root
 }
 
-// initApp открывает БД и gRPC соединение.
-func initApp(ctx context.Context) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
-	db, err := storage.Open(cfg.DBPath)
-	if err != nil {
-		return fmt.Errorf("open local db: %w", err)
-	}
-
-	dialCreds, err := buildTransportCredentials(cfg)
-	if err != nil {
-		db.Close()
-		return fmt.Errorf("tls credentials: %w", err)
-	}
-
-	conn, err := grpc.NewClient(cfg.ServerAddr, grpc.WithTransportCredentials(dialCreds))
-	if err != nil {
-		db.Close()
-		return fmt.Errorf("connect to server %s: %w", cfg.ServerAddr, err)
-	}
-
-	authStore := storage.NewAuthStorage(db)
-	secretStore := storage.NewSecretStorage(db)
-
-	authSvc := service.NewAuthService(pb.NewAuthServiceClient(conn), authStore)
-	secretSvc := service.NewSecretService(pb.NewSecretsServiceClient(conn), secretStore)
-
-	state = &app{
-		db:          db,
-		conn:        conn,
-		cfg:         cfg,
-		authService: authSvc,
-		secretSvc:   secretSvc,
-	}
-	return nil
-}
-
-// cleanupApp выполняет WAL checkpoint и закрывает соединения.
-func cleanupApp(ctx context.Context) error {
-	if state == nil {
-		return nil
-	}
-	_ = storage.Checkpoint(ctx, state.db)
-	_ = state.conn.Close()
-	_ = state.db.Close()
-	state = nil
-	return nil
-}
-
-// authedContext добавляет JWT токен в gRPC метаданные.
-func authedContext(ctx context.Context) (context.Context, error) {
-	token, err := state.authService.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("build auth context: %w", err)
-	}
-	md := metadata.Pairs("authorization", "Bearer "+token)
-	return metadata.NewOutgoingContext(ctx, md), nil
-}
-
 // buildTransportCredentials возвращает транспортные credentials на основе конфигурации TLS.
-// При TLSEnabled=false используется insecure (только для разработки).
-// При TLSEnabled=true и TLSCACert — проверяет сертификат сервера через указанный CA.
-// При TLSEnabled=true и TLSSkipVerify=true — не проверяет сертификат (только для dev с self-signed).
 func buildTransportCredentials(cfg config.Config) (credentials.TransportCredentials, error) {
 	if !cfg.TLSEnabled {
 		return insecure.NewCredentials(), nil
@@ -159,22 +123,4 @@ func buildTransportCredentials(cfg config.Config) (credentials.TransportCredenti
 	}
 
 	return credentials.NewTLS(tlsCfg), nil
-}
-
-// readPassword читает пароль из терминала без эха.
-// Если stdin не терминал (pipe/тест) — читает как обычный ввод.
-func readPassword(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		b, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Fprintln(os.Stderr)
-		if err != nil {
-			return "", fmt.Errorf("read password: %w", err)
-		}
-		return string(b), nil
-	}
-	// в не-терминальном режиме (тесты, pipe) читаем строку обычно.
-	var s string
-	_, err := fmt.Fscan(os.Stdin, &s)
-	return s, err
 }

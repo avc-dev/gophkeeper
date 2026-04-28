@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/avc-dev/gophkeeper/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -26,12 +25,8 @@ WHERE  id = ? AND deleted = 0`
 	if err != nil {
 		return nil, fmt.Errorf("secret update: %w", err)
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return nil, fmt.Errorf("secret update rows affected: %w", err)
-	}
-	if affected == 0 {
-		return nil, domain.ErrSecretNotFound
+	if err := checkAffected(res, "secret update"); err != nil {
+		return nil, err
 	}
 	return s.Get(ctx, id)
 }

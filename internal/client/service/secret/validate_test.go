@@ -1,4 +1,4 @@
-package service
+package secret
 
 import (
 	"errors"
@@ -57,7 +57,6 @@ func TestValidateLuhn(t *testing.T) {
 }
 
 func TestValidateExpiry(t *testing.T) {
-	// генерируем валидный срок: следующий год.
 	futureYear := time.Now().AddDate(1, 0, 0).Format("01/06")
 
 	tests := []struct {

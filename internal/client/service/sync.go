@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	keyLastSyncAt = "last_sync_at"
-
 	// интервалы адаптивного polling'а.
 	intervalPending = 10 * time.Second // есть несинхронизированные записи
 	intervalIdle    = 60 * time.Second // всё синхронизировано
@@ -132,5 +130,5 @@ func (s *SyncService) authedCtx(ctx context.Context) (context.Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get auth token: %w", err)
 	}
-	return contextWithBearerToken(ctx, token), nil
+	return ContextWithBearerToken(ctx, token), nil
 }

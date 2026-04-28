@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// contextWithBearerToken добавляет JWT в исходящие gRPC метаданные.
-func contextWithBearerToken(ctx context.Context, token string) context.Context {
+// ContextWithBearerToken adds a JWT Bearer token to outgoing gRPC metadata.
+func ContextWithBearerToken(ctx context.Context, token string) context.Context {
 	return metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
 }

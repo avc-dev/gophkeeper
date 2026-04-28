@@ -1,4 +1,4 @@
-package service
+package secret
 
 import (
 	"errors"
@@ -19,7 +19,6 @@ var (
 
 var reExpiry = regexp.MustCompile(`^(0[1-9]|1[0-2])/(\d{2})$`)
 
-// ValidateCard проверяет номер карты (Luhn), срок действия и CVV.
 func ValidateCard(number, expiry, cvv string) error {
 	if err := validateLuhn(number); err != nil {
 		return err
@@ -27,15 +26,10 @@ func ValidateCard(number, expiry, cvv string) error {
 	if err := validateExpiry(expiry); err != nil {
 		return err
 	}
-	if err := validateCVV(cvv); err != nil {
-		return err
-	}
-	return nil
+	return validateCVV(cvv)
 }
 
-// validateLuhn проверяет контрольную сумму номера карты по алгоритму Луна.
 func validateLuhn(number string) error {
-	// убираем пробелы и дефисы для удобства ввода.
 	clean := strings.Map(func(r rune) rune {
 		if unicode.IsDigit(r) {
 			return r
@@ -68,7 +62,6 @@ func validateLuhn(number string) error {
 	return nil
 }
 
-// validateExpiry проверяет формат MM/YY и что дата не в прошлом.
 func validateExpiry(expiry string) error {
 	m := reExpiry.FindStringSubmatch(expiry)
 	if m == nil {
@@ -76,17 +69,13 @@ func validateExpiry(expiry string) error {
 	}
 	month, _ := strconv.Atoi(m[1])
 	year, _ := strconv.Atoi("20" + m[2])
-
-	now := time.Now()
-	// карта действительна до последнего дня месяца истечения.
 	expTime := time.Date(year, time.Month(month)+1, 0, 23, 59, 59, 0, time.UTC)
-	if expTime.Before(now) {
+	if expTime.Before(time.Now()) {
 		return ErrExpiryPast
 	}
 	return nil
 }
 
-// validateCVV проверяет что CVV состоит из 3 или 4 цифр.
 func validateCVV(cvv string) error {
 	if len(cvv) != 3 && len(cvv) != 4 {
 		return ErrCVVInvalid

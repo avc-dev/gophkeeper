@@ -5,22 +5,20 @@ import (
 	"errors"
 
 	"github.com/avc-dev/gophkeeper/internal/domain"
-	"github.com/avc-dev/gophkeeper/internal/server/handler"
 	pb "github.com/avc-dev/gophkeeper/proto"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func (h *Handler) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequest) (*pb.DeleteSecretResponse, error) {
-	userID, ok := handler.UserIDFromContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "missing user id")
+	userID, err := extractUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	id, err := uuid.Parse(req.Id)
+	id, err := parseSecretID(req.Id)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid secret id")
+		return nil, err
 	}
 
 	if err := h.svc.Delete(ctx, userID, id); err != nil {

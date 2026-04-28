@@ -1,4 +1,4 @@
-package service
+package auth
 
 import (
 	"context"
@@ -31,23 +31,21 @@ func (m *mockAuthGRPC) Login(_ context.Context, _ *pb.LoginRequest, _ ...grpc.Ca
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-// newTestAuthService возвращает AuthService с in-memory SQLite.
-func newTestAuthService(t *testing.T, client pb.AuthServiceClient) *AuthService {
+func newTestService(t *testing.T, client pb.AuthServiceClient) *Service {
 	t.Helper()
 	db, err := storage.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
-	return NewAuthService(client, storage.NewAuthStorage(db))
+	return New(client, storage.NewAuthStorage(db))
 }
 
-// validLoginResp строит ответ Login с корректным 32-байтным KDF-salt.
 func validLoginResp(token string) *pb.LoginResponse {
 	return &pb.LoginResponse{Token: token, KdfSalt: make([]byte, 32)}
 }
 
 // ─── Register ─────────────────────────────────────────────────────────────────
 
-func TestAuthServiceRegister(t *testing.T) {
+func TestRegister(t *testing.T) {
 	tests := []struct {
 		name    string
 		grpcErr error
@@ -59,7 +57,7 @@ func TestAuthServiceRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestAuthService(t, &mockAuthGRPC{registerErr: tt.grpcErr})
+			svc := newTestService(t, &mockAuthGRPC{registerErr: tt.grpcErr})
 			err := svc.Register(context.Background(), "user@example.com", "password")
 			if tt.wantErr {
 				require.Error(t, err)
@@ -72,7 +70,7 @@ func TestAuthServiceRegister(t *testing.T) {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-func TestAuthServiceLogin(t *testing.T) {
+func TestLogin(t *testing.T) {
 	tests := []struct {
 		name       string
 		resp       *pb.LoginResponse
@@ -94,7 +92,7 @@ func TestAuthServiceLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestAuthService(t, &mockAuthGRPC{loginResp: tt.resp, loginErr: tt.grpcErr})
+			svc := newTestService(t, &mockAuthGRPC{loginResp: tt.resp, loginErr: tt.grpcErr})
 			key, err := svc.Login(context.Background(), "user@example.com", "password")
 			if tt.wantErr {
 				require.Error(t, err)
@@ -108,7 +106,7 @@ func TestAuthServiceLogin(t *testing.T) {
 
 // ─── DeriveMasterKey ──────────────────────────────────────────────────────────
 
-func TestAuthServiceDeriveMasterKey(t *testing.T) {
+func TestDeriveMasterKey(t *testing.T) {
 	tests := []struct {
 		name       string
 		loginFirst bool
@@ -128,7 +126,7 @@ func TestAuthServiceDeriveMasterKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestAuthService(t, &mockAuthGRPC{loginResp: validLoginResp("tok")})
+			svc := newTestService(t, &mockAuthGRPC{loginResp: validLoginResp("tok")})
 			if tt.loginFirst {
 				_, err := svc.Login(context.Background(), "user@example.com", "pass")
 				require.NoError(t, err)
@@ -143,7 +141,6 @@ func TestAuthServiceDeriveMasterKey(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, key, tt.wantKeyLen)
 
-			// деривация детерминирована: тот же пароль + тот же salt → тот же ключ.
 			key2, err := svc.DeriveMasterKey(context.Background(), "pass")
 			require.NoError(t, err)
 			assert.Equal(t, key, key2)
@@ -153,7 +150,7 @@ func TestAuthServiceDeriveMasterKey(t *testing.T) {
 
 // ─── Token ────────────────────────────────────────────────────────────────────
 
-func TestAuthServiceToken(t *testing.T) {
+func TestToken(t *testing.T) {
 	tests := []struct {
 		name       string
 		loginFirst bool
@@ -176,7 +173,7 @@ func TestAuthServiceToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := validLoginResp(tt.loginToken)
-			svc := newTestAuthService(t, &mockAuthGRPC{loginResp: resp})
+			svc := newTestService(t, &mockAuthGRPC{loginResp: resp})
 			if tt.loginFirst {
 				_, err := svc.Login(context.Background(), "user@example.com", "pass")
 				require.NoError(t, err)
@@ -196,34 +193,22 @@ func TestAuthServiceToken(t *testing.T) {
 
 // ─── GetLastSyncAt / SetLastSyncAt ────────────────────────────────────────────
 
-func TestAuthServiceLastSyncAt(t *testing.T) {
+func TestLastSyncAt(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	later := now.Add(time.Hour)
 
 	tests := []struct {
 		name     string
-		setTime  *time.Time // nil — не вызывать Set
+		setTime  *time.Time
 		wantNil  bool
 		wantTime *time.Time
 	}{
-		{
-			name:    "nil before first sync",
-			wantNil: true,
-		},
-		{
-			name:     "stores and retrieves time",
-			setTime:  &now,
-			wantTime: &now,
-		},
-		{
-			name:     "overwrite updates time",
-			setTime:  &later,
-			wantTime: &later,
-		},
+		{name: "nil before first sync", wantNil: true},
+		{name: "stores and retrieves time", setTime: &now, wantTime: &now},
+		{name: "overwrite updates time", setTime: &later, wantTime: &later},
 	}
 
-	// тесты используют одну БД: каждый случай влияет на следующий (проверяем накопительно).
-	svc := newTestAuthService(t, &mockAuthGRPC{})
+	svc := newTestService(t, &mockAuthGRPC{})
 	ctx := context.Background()
 
 	for _, tt := range tests {
@@ -231,10 +216,8 @@ func TestAuthServiceLastSyncAt(t *testing.T) {
 			if tt.setTime != nil {
 				require.NoError(t, svc.SetLastSyncAt(ctx, *tt.setTime))
 			}
-
 			got, err := svc.GetLastSyncAt(ctx)
 			require.NoError(t, err)
-
 			if tt.wantNil {
 				assert.Nil(t, got)
 				return
@@ -247,14 +230,14 @@ func TestAuthServiceLastSyncAt(t *testing.T) {
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
-func TestAuthServiceLogout(t *testing.T) {
+func TestLogout(t *testing.T) {
 	tests := []struct {
 		name    string
-		checkFn func(t *testing.T, svc *AuthService)
+		checkFn func(t *testing.T, svc *Service)
 	}{
 		{
 			name: "token available before logout",
-			checkFn: func(t *testing.T, svc *AuthService) {
+			checkFn: func(t *testing.T, svc *Service) {
 				t.Helper()
 				_, err := svc.Token(context.Background())
 				require.NoError(t, err)
@@ -262,7 +245,7 @@ func TestAuthServiceLogout(t *testing.T) {
 		},
 		{
 			name: "token not available after logout",
-			checkFn: func(t *testing.T, svc *AuthService) {
+			checkFn: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.Logout(context.Background()))
 				_, err := svc.Token(context.Background())
@@ -272,7 +255,7 @@ func TestAuthServiceLogout(t *testing.T) {
 		},
 		{
 			name: "kdf_salt not available after logout",
-			checkFn: func(t *testing.T, svc *AuthService) {
+			checkFn: func(t *testing.T, svc *Service) {
 				t.Helper()
 				_, err := svc.DeriveMasterKey(context.Background(), "pass")
 				require.Error(t, err)
@@ -281,8 +264,7 @@ func TestAuthServiceLogout(t *testing.T) {
 		},
 	}
 
-	// одна сессия: сначала логин, потом последовательные проверки.
-	svc := newTestAuthService(t, &mockAuthGRPC{loginResp: validLoginResp("tok")})
+	svc := newTestService(t, &mockAuthGRPC{loginResp: validLoginResp("tok")})
 	_, err := svc.Login(context.Background(), "user@example.com", "pass")
 	require.NoError(t, err)
 

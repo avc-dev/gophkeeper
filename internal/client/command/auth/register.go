@@ -1,12 +1,13 @@
-package command
+package auth
 
 import (
 	"fmt"
 
+	"github.com/avc-dev/gophkeeper/internal/client/command/cmdutil"
 	"github.com/spf13/cobra"
 )
 
-func newRegisterCmd() *cobra.Command {
+func NewRegisterCmd(app *cmdutil.App) *cobra.Command {
 	var email, password string
 
 	cmd := &cobra.Command{
@@ -17,13 +18,13 @@ func newRegisterCmd() *cobra.Command {
 
 			if password == "" {
 				var err error
-				password, err = readPassword("Master password: ")
+				password, err = cmdutil.ReadPassword("Master password: ")
 				if err != nil {
 					return fmt.Errorf("read password: %w", err)
 				}
 			}
 
-			if err := state.authService.Register(ctx, email, password); err != nil {
+			if err := app.AuthSvc.Register(ctx, email, password); err != nil {
 				return fmt.Errorf("registration failed: %w", err)
 			}
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/avc-dev/gophkeeper/internal/server/handler"
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func (h *Handler) ListSecrets(ctx context.Context, req *pb.ListSecretsRequest) (*pb.ListSecretsResponse, error) {
-	userID, ok := handler.UserIDFromContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "missing user id")
+	userID, err := extractUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// since = nil означает "все записи пользователя"
 	var since *time.Time
 	if req.Since != nil && !req.Since.AsTime().IsZero() {
 		t := req.Since.AsTime()

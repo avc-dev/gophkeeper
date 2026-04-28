@@ -1,14 +1,15 @@
-package command
+package secret
 
 import (
 	"fmt"
 	"text/tabwriter"
 
+	"github.com/avc-dev/gophkeeper/internal/client/command/cmdutil"
 	"github.com/avc-dev/gophkeeper/internal/domain"
 	"github.com/spf13/cobra"
 )
 
-func newListCmd() *cobra.Command {
+func NewListCmd(app *cmdutil.App) *cobra.Command {
 	var typFilter string
 
 	cmd := &cobra.Command{
@@ -22,7 +23,7 @@ func newListCmd() *cobra.Command {
 				typ = domain.SecretType(typFilter)
 			}
 
-			secrets, err := state.secretSvc.List(ctx, typ)
+			secrets, err := app.SecretSvc.List(ctx, typ)
 			if err != nil {
 				return fmt.Errorf("list secrets: %w", err)
 			}

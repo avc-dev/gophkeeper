@@ -1,11 +1,10 @@
-package service
+package secret
 
 import (
 	"encoding/json"
 	"fmt"
 )
 
-// CredentialPayload — данные логин/пароля, хранятся зашифрованными.
 type CredentialPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
@@ -13,7 +12,6 @@ type CredentialPayload struct {
 	Note     string `json:"note,omitempty"`
 }
 
-// CardPayload — данные банковской карты, хранятся зашифрованными.
 type CardPayload struct {
 	Number string `json:"number"`
 	Holder string `json:"holder"`
@@ -23,18 +21,16 @@ type CardPayload struct {
 	Note   string `json:"note,omitempty"`
 }
 
-// TextPayload — произвольный текст, хранится зашифрованным.
 type TextPayload struct {
 	Content string `json:"content"`
 	Note    string `json:"note,omitempty"`
 }
 
-// BinaryPayload — произвольный бинарный файл, хранится зашифрованным.
-// Data содержит бинарное содержимое в явном base64-кодировании (стандарт без переносов строк).
-// Explicit encoding, а не неявный json.Marshal([]byte), чтобы было однозначно видно из типа.
+// BinaryPayload хранит файл в явном base64: Data — строка, не []byte,
+// чтобы кодирование было явным (в AddBinary), а не скрытым в json.Marshal.
 type BinaryPayload struct {
 	Filename string `json:"filename"`
-	Data     string `json:"data"` // base64-encoded binary content
+	Data     string `json:"data"`
 	Note     string `json:"note,omitempty"`
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/avc-dev/gophkeeper/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -25,19 +24,11 @@ WHERE  id = ? AND deleted = 0`
 	if err != nil {
 		return fmt.Errorf("secret delete: %w", err)
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("secret delete rows affected: %w", err)
-	}
-	if affected == 0 {
-		return domain.ErrSecretNotFound
-	}
-	return nil
+	return checkAffected(res, "secret delete")
 }
 
 // Purge физически удаляет запись, помеченную как deleted.
-// Вызывается после успешного подтверждения удаления на сервере — sync_status не проверяем,
-// так как Delete выставляет 'pending', а Purge вызывается только после явного подтверждения.
+// Вызывается после успешного подтверждения удаления на сервере.
 func (s *SecretStorage) Purge(ctx context.Context, id uuid.UUID) error {
 	if _, err := s.db.ExecContext(ctx,
 		`DELETE FROM secrets WHERE id = ? AND deleted = 1`,

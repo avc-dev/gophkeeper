@@ -1,4 +1,4 @@
-package service
+package secret
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/avc-dev/gophkeeper/internal/client/storage"
 	"github.com/avc-dev/gophkeeper/internal/domain"
+	"github.com/avc-dev/gophkeeper/internal/protoconv"
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -52,24 +53,20 @@ func (m *mockSecretsGRPC) DeleteSecret(_ context.Context, _ *pb.DeleteSecretRequ
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-// testKey — 32-байтный мастер-ключ для AES-256-GCM в тестах.
 var testKey = bytes.Repeat([]byte{0x42}, 32)
 
-// newTestSecretService возвращает SecretService с in-memory SQLite.
-func newTestSecretService(t *testing.T, client pb.SecretsServiceClient) *SecretService {
+func newTestService(t *testing.T, client pb.SecretsServiceClient) *Service {
 	t.Helper()
 	db, err := storage.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
-	return NewSecretService(client, storage.NewSecretStorage(db))
+	return New(client, storage.NewSecretStorage(db))
 }
 
-// offlineMock возвращает mock, у которого CreateSecret всегда возвращает ошибку (offline).
 func offlineMock() *mockSecretsGRPC {
 	return &mockSecretsGRPC{createErr: errors.New("offline")}
 }
 
-// nowProto — текущее время как protobuf Timestamp.
 func nowProto() *timestamppb.Timestamp { return timestamppb.New(time.Now()) }
 
 // ─── Add ──────────────────────────────────────────────────────────────────────
@@ -80,7 +77,7 @@ func TestSecretServiceAdd(t *testing.T) {
 	tests := []struct {
 		name           string
 		mock           *mockSecretsGRPC
-		add            func(svc *SecretService) error
+		add            func(svc *Service) error
 		secretName     string
 		secretType     domain.SecretType
 		wantSyncStatus storage.SyncStatus
@@ -90,7 +87,7 @@ func TestSecretServiceAdd(t *testing.T) {
 			mock: &mockSecretsGRPC{
 				createResp: &pb.CreateSecretResponse{Id: serverUUID, Version: 1, CreatedAt: nowProto()},
 			},
-			add: func(svc *SecretService) error {
+			add: func(svc *Service) error {
 				return svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "https://github.com", "")
 			},
 			secretName:     "gh",
@@ -100,7 +97,7 @@ func TestSecretServiceAdd(t *testing.T) {
 		{
 			name: "credential — server offline → pending",
 			mock: offlineMock(),
-			add: func(svc *SecretService) error {
+			add: func(svc *Service) error {
 				return svc.AddCredential(context.Background(), testKey, "gh-offline", "alice", "pass", "", "")
 			},
 			secretName:     "gh-offline",
@@ -110,7 +107,7 @@ func TestSecretServiceAdd(t *testing.T) {
 		{
 			name: "card — offline",
 			mock: offlineMock(),
-			add: func(svc *SecretService) error {
+			add: func(svc *Service) error {
 				return svc.AddCard(context.Background(), testKey, "visa", "4532015112830366", "JOHN DOE", "12/26", "123", "Tinkoff", "")
 			},
 			secretName:     "visa",
@@ -120,7 +117,7 @@ func TestSecretServiceAdd(t *testing.T) {
 		{
 			name: "text — offline",
 			mock: offlineMock(),
-			add: func(svc *SecretService) error {
+			add: func(svc *Service) error {
 				return svc.AddText(context.Background(), testKey, "note", "my secret note", "")
 			},
 			secretName:     "note",
@@ -130,7 +127,7 @@ func TestSecretServiceAdd(t *testing.T) {
 		{
 			name: "binary — offline",
 			mock: offlineMock(),
-			add: func(svc *SecretService) error {
+			add: func(svc *Service) error {
 				return svc.AddBinary(context.Background(), testKey, "key", "key.pem", []byte{0x01, 0x02}, "")
 			},
 			secretName:     "key",
@@ -141,7 +138,7 @@ func TestSecretServiceAdd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, tt.mock)
+			svc := newTestService(t, tt.mock)
 
 			err := tt.add(svc)
 			require.NoError(t, err)
@@ -160,17 +157,17 @@ func TestSecretServiceGet(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		setup   func(t *testing.T, svc *SecretService)
-		get     func(svc *SecretService) error
+		setup   func(t *testing.T, svc *Service)
+		get     func(svc *Service) error
 		wantErr bool
 	}{
 		{
 			name: "credential — decrypts correctly",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "s3cr3t", "https://example.com", ""))
 			},
-			get: func(svc *SecretService) error {
+			get: func(svc *Service) error {
 				got, err := svc.GetCredential(context.Background(), testKey, "gh")
 				if err != nil {
 					return err
@@ -182,11 +179,11 @@ func TestSecretServiceGet(t *testing.T) {
 		},
 		{
 			name: "credential — wrong master key",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 			},
-			get: func(svc *SecretService) error {
+			get: func(svc *Service) error {
 				_, err := svc.GetCredential(context.Background(), wrongKey, "gh")
 				return err
 			},
@@ -194,8 +191,8 @@ func TestSecretServiceGet(t *testing.T) {
 		},
 		{
 			name:  "credential — not found",
-			setup: func(t *testing.T, svc *SecretService) {},
-			get: func(svc *SecretService) error {
+			setup: func(t *testing.T, svc *Service) {},
+			get: func(svc *Service) error {
 				_, err := svc.GetCredential(context.Background(), testKey, "nonexistent")
 				return err
 			},
@@ -203,11 +200,11 @@ func TestSecretServiceGet(t *testing.T) {
 		},
 		{
 			name: "card — decrypts correctly",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCard(context.Background(), testKey, "visa", "4532015112830366", "JOHN DOE", "12/26", "123", "Tinkoff", ""))
 			},
-			get: func(svc *SecretService) error {
+			get: func(svc *Service) error {
 				got, err := svc.GetCard(context.Background(), testKey, "visa")
 				if err != nil {
 					return err
@@ -219,11 +216,11 @@ func TestSecretServiceGet(t *testing.T) {
 		},
 		{
 			name: "text — decrypts correctly",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddText(context.Background(), testKey, "note", "top secret text", ""))
 			},
-			get: func(svc *SecretService) error {
+			get: func(svc *Service) error {
 				got, err := svc.GetText(context.Background(), testKey, "note")
 				if err != nil {
 					return err
@@ -234,17 +231,16 @@ func TestSecretServiceGet(t *testing.T) {
 		},
 		{
 			name: "binary — decrypts correctly",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddBinary(context.Background(), testKey, "file", "data.bin", []byte{0xDE, 0xAD, 0xBE, 0xEF}, ""))
 			},
-			get: func(svc *SecretService) error {
+			get: func(svc *Service) error {
 				got, err := svc.GetBinary(context.Background(), testKey, "file")
 				if err != nil {
 					return err
 				}
 				assert.Equal(t, "data.bin", got.Filename)
-				// Data хранится как явная base64-строка; декодирование — на стороне вызывающего кода (команды).
 				assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0xDE, 0xAD, 0xBE, 0xEF}), got.Data)
 				return nil
 			},
@@ -253,7 +249,7 @@ func TestSecretServiceGet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, offlineMock())
+			svc := newTestService(t, offlineMock())
 			tt.setup(t, svc)
 
 			err := tt.get(svc)
@@ -271,18 +267,18 @@ func TestSecretServiceGet(t *testing.T) {
 func TestSecretServiceList(t *testing.T) {
 	tests := []struct {
 		name    string
-		setup   func(t *testing.T, svc *SecretService)
+		setup   func(t *testing.T, svc *Service)
 		filter  domain.SecretType
 		wantLen int
 	}{
 		{
 			name:    "empty store",
-			setup:   func(t *testing.T, svc *SecretService) {},
+			setup:   func(t *testing.T, svc *Service) {},
 			wantLen: 0,
 		},
 		{
 			name: "all types",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 				require.NoError(t, svc.AddText(context.Background(), testKey, "note", "text", ""))
@@ -291,7 +287,7 @@ func TestSecretServiceList(t *testing.T) {
 		},
 		{
 			name: "filter by credential type",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 				require.NoError(t, svc.AddText(context.Background(), testKey, "note", "text", ""))
@@ -303,7 +299,7 @@ func TestSecretServiceList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, offlineMock())
+			svc := newTestService(t, offlineMock())
 			tt.setup(t, svc)
 
 			list, err := svc.List(context.Background(), tt.filter)
@@ -318,17 +314,17 @@ func TestSecretServiceList(t *testing.T) {
 func TestSecretServiceHasPending(t *testing.T) {
 	tests := []struct {
 		name        string
-		setup       func(t *testing.T, svc *SecretService)
+		setup       func(t *testing.T, svc *Service)
 		wantPending bool
 	}{
 		{
 			name:        "empty store",
-			setup:       func(t *testing.T, svc *SecretService) {},
+			setup:       func(t *testing.T, svc *Service) {},
 			wantPending: false,
 		},
 		{
 			name: "after offline add",
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 			},
@@ -338,7 +334,7 @@ func TestSecretServiceHasPending(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, offlineMock())
+			svc := newTestService(t, offlineMock())
 			tt.setup(t, svc)
 
 			has, err := svc.HasPending(context.Background())
@@ -356,23 +352,22 @@ func TestSecretServiceDelete(t *testing.T) {
 	tests := []struct {
 		name    string
 		mock    *mockSecretsGRPC
-		setup   func(t *testing.T, svc *SecretService)
-		delete  func(t *testing.T, svc *SecretService) error
+		setup   func(t *testing.T, svc *Service)
+		delete  func(t *testing.T, svc *Service) error
 		wantErr bool
 	}{
 		{
 			name: "never synced — local soft delete, GetByName returns not found",
 			mock: offlineMock(),
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 			},
-			delete: func(t *testing.T, svc *SecretService) error {
+			delete: func(t *testing.T, svc *Service) error {
 				err := svc.Delete(context.Background(), "gh", domain.SecretTypeCredential)
 				if err != nil {
 					return err
 				}
-				// GetByName фильтрует deleted=0, поэтому удалённая запись недоступна.
 				_, getErr := svc.secretStore.GetByName(context.Background(), "gh", domain.SecretTypeCredential)
 				require.ErrorIs(t, getErr, domain.ErrSecretNotFound)
 				return nil
@@ -384,19 +379,19 @@ func TestSecretServiceDelete(t *testing.T) {
 				createResp: &pb.CreateSecretResponse{Id: syncedServerID, Version: 1, CreatedAt: nowProto()},
 				deleteResp: &pb.DeleteSecretResponse{},
 			},
-			setup: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, svc *Service) {
 				t.Helper()
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
 			},
-			delete: func(t *testing.T, svc *SecretService) error {
+			delete: func(t *testing.T, svc *Service) error {
 				return svc.Delete(context.Background(), "gh", domain.SecretTypeCredential)
 			},
 		},
 		{
 			name:  "not found — returns error",
 			mock:  offlineMock(),
-			setup: func(t *testing.T, svc *SecretService) {},
-			delete: func(t *testing.T, svc *SecretService) error {
+			setup: func(t *testing.T, svc *Service) {},
+			delete: func(t *testing.T, svc *Service) error {
 				return svc.Delete(context.Background(), "nonexistent", domain.SecretTypeCredential)
 			},
 			wantErr: true,
@@ -405,7 +400,7 @@ func TestSecretServiceDelete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, tt.mock)
+			svc := newTestService(t, tt.mock)
 			tt.setup(t, svc)
 
 			err := tt.delete(t, svc)
@@ -433,7 +428,7 @@ func TestSecretServiceSync(t *testing.T) {
 		name    string
 		mock    *mockSecretsGRPC
 		wantErr bool
-		verify  func(t *testing.T, svc *SecretService)
+		verify  func(t *testing.T, svc *Service)
 	}{
 		{
 			name: "downloads and caches secrets from server",
@@ -451,7 +446,7 @@ func TestSecretServiceSync(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, svc *SecretService) {
+			verify: func(t *testing.T, svc *Service) {
 				t.Helper()
 				sec, err := svc.secretStore.GetByName(context.Background(), "server-cred", domain.SecretTypeCredential)
 				require.NoError(t, err)
@@ -467,7 +462,7 @@ func TestSecretServiceSync(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestSecretService(t, tt.mock)
+			svc := newTestService(t, tt.mock)
 
 			err := svc.Sync(context.Background(), testKey, nil)
 			if tt.wantErr {
@@ -489,13 +484,13 @@ func TestSecretServicePushPending(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		setup  func(t *testing.T, mock *mockSecretsGRPC, svc *SecretService)
-		verify func(t *testing.T, svc *SecretService)
+		setup  func(t *testing.T, mock *mockSecretsGRPC, svc *Service)
+		verify func(t *testing.T, svc *Service)
 	}{
 		{
 			name:  "no pending — no-op",
-			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *SecretService) {},
-			verify: func(t *testing.T, svc *SecretService) {
+			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *Service) {},
+			verify: func(t *testing.T, svc *Service) {
 				t.Helper()
 				has, err := svc.HasPending(context.Background())
 				require.NoError(t, err)
@@ -504,15 +499,13 @@ func TestSecretServicePushPending(t *testing.T) {
 		},
 		{
 			name: "pushes pending create to server → synced",
-			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *SecretService) {
+			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *Service) {
 				t.Helper()
-				// добавляем в offline — записывается как pending.
 				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
-				// "восстанавливаем" сеть.
 				mock.createErr = nil
 				mock.createResp = &pb.CreateSecretResponse{Id: serverUUID, Version: 1, CreatedAt: nowProto()}
 			},
-			verify: func(t *testing.T, svc *SecretService) {
+			verify: func(t *testing.T, svc *Service) {
 				t.Helper()
 				sec, err := svc.secretStore.GetByName(context.Background(), "gh", domain.SecretTypeCredential)
 				require.NoError(t, err)
@@ -524,7 +517,7 @@ func TestSecretServicePushPending(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := offlineMock()
-			svc := newTestSecretService(t, mock)
+			svc := newTestService(t, mock)
 			tt.setup(t, mock, svc)
 
 			err := svc.PushPending(context.Background())
@@ -551,7 +544,7 @@ func TestTypeToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantProto, typeToProto(tt.input))
+			assert.Equal(t, tt.wantProto, protoconv.TypeToProto(tt.input))
 		})
 	}
 }
@@ -571,7 +564,7 @@ func TestTypeToDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantDomain, typeToDomain(tt.input))
+			assert.Equal(t, tt.wantDomain, protoconv.TypeToDomain(tt.input))
 		})
 	}
 }
