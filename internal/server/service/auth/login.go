@@ -10,7 +10,9 @@ import (
 func (s *Service) Login(ctx context.Context, email, password string) (token string, kdfSalt []byte, err error) {
 	user, err := s.users.FindByEmail(ctx, email)
 	if err != nil {
-		// намеренно не различаем "не найден" и "неверный пароль" — защита от user enumeration
+		// bcrypt-вызов нормализует время ответа, чтобы атакующий не мог по задержке
+		// определить, зарегистрирован ли email (защита от user enumeration via timing).
+		_ = bcrypt.CompareHashAndPassword(getDummyHash(), []byte(password))
 		return "", nil, fmt.Errorf("invalid email or password")
 	}
 

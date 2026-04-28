@@ -1,6 +1,7 @@
 package command
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -188,14 +189,19 @@ func newGetBinaryCmd() *cobra.Command {
 				return fmt.Errorf("get binary: %w", err)
 			}
 
+			rawData, err := base64.StdEncoding.DecodeString(p.Data)
+			if err != nil {
+				return fmt.Errorf("decode binary data: %w", err)
+			}
+
 			outPath := output
 			if outPath == "" {
 				outPath = p.Filename
 			}
-			if err := os.WriteFile(outPath, p.Data, 0o600); err != nil {
+			if err := os.WriteFile(outPath, rawData, 0o600); err != nil {
 				return fmt.Errorf("write file: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Saved to %s (%d bytes).\n", outPath, len(p.Data))
+			fmt.Fprintf(cmd.OutOrStdout(), "Saved to %s (%d bytes).\n", outPath, len(rawData))
 			return nil
 		},
 	}

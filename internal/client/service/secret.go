@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -45,7 +46,11 @@ func (s *SecretService) AddText(ctx context.Context, masterKey []byte, name, con
 
 // AddBinary шифрует и сохраняет бинарный файл.
 func (s *SecretService) AddBinary(ctx context.Context, masterKey []byte, name, filename string, data []byte, note string) error {
-	p := BinaryPayload{Filename: filename, Data: data, Note: note}
+	p := BinaryPayload{
+		Filename: filename,
+		Data:     base64.StdEncoding.EncodeToString(data),
+		Note:     note,
+	}
 	return s.add(ctx, masterKey, domain.SecretTypeBinary, name, p, "")
 }
 
@@ -55,7 +60,9 @@ func (s *SecretService) add(ctx context.Context, masterKey []byte, typ domain.Se
 	if err != nil {
 		return fmt.Errorf("add secret: %w", err)
 	}
-	encrypted, err := crypto.Encrypt(masterKey, raw, nil)
+	// name передаётся как AAD: сервер не может подменить payload одного секрета другим —
+	// при расшифровке с другим именем тег аутентификации GCM не пройдёт проверку.
+	encrypted, err := crypto.Encrypt(masterKey, raw, []byte(name))
 	if err != nil {
 		return fmt.Errorf("encrypt: %w", err)
 	}
@@ -132,7 +139,7 @@ func (s *SecretService) decrypt(ctx context.Context, masterKey []byte, name stri
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s %q: %w", typ, name, err)
 	}
-	raw, err := crypto.Decrypt(masterKey, sec.Payload, nil)
+	raw, err := crypto.Decrypt(masterKey, sec.Payload, []byte(sec.Name))
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)
 	}
@@ -202,6 +209,7 @@ func (s *SecretService) Sync(ctx context.Context, masterKey []byte, since *time.
 				Payload:   pbSec.EncryptedPayload,
 				Metadata:  pbSec.Metadata,
 				Version:   pbSec.Version,
+				CreatedAt: pbSec.CreatedAt.AsTime(),
 				UpdatedAt: updatedAt,
 			},
 			ServerID:        &serverID,

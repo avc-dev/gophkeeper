@@ -35,12 +35,13 @@ WHERE  id = ? AND deleted = 0`
 	return nil
 }
 
-// Purge физически удаляет синхронизированные удалённые записи.
-// Вызывается после успешного подтверждения удаления на сервере.
+// Purge физически удаляет запись, помеченную как deleted.
+// Вызывается после успешного подтверждения удаления на сервере — sync_status не проверяем,
+// так как Delete выставляет 'pending', а Purge вызывается только после явного подтверждения.
 func (s *SecretStorage) Purge(ctx context.Context, id uuid.UUID) error {
 	if _, err := s.db.ExecContext(ctx,
-		`DELETE FROM secrets WHERE id = ? AND deleted = 1 AND sync_status = ?`,
-		id.String(), string(SyncStatusSynced),
+		`DELETE FROM secrets WHERE id = ? AND deleted = 1`,
+		id.String(),
 	); err != nil {
 		return fmt.Errorf("secret purge: %w", err)
 	}

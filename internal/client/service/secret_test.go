@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -243,7 +244,8 @@ func TestSecretServiceGet(t *testing.T) {
 					return err
 				}
 				assert.Equal(t, "data.bin", got.Filename)
-				assert.Equal(t, []byte{0xDE, 0xAD, 0xBE, 0xEF}, got.Data)
+				// Data хранится как явная base64-строка; декодирование — на стороне вызывающего кода (команды).
+				assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0xDE, 0xAD, 0xBE, 0xEF}), got.Data)
 				return nil
 			},
 		},

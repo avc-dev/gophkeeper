@@ -56,14 +56,15 @@ func TestPayloadRoundTrip(t *testing.T) {
 			},
 		},
 		{
-			name:    "binary",
-			payload: BinaryPayload{Filename: "key.pem", Data: []byte{0x00, 0x01, 0xFF, 0xFE}, Note: "ssh key"},
+			name: "binary",
+			// Data — явная base64-строка; []byte кодируется снаружи (в SecretService.AddBinary).
+			payload: BinaryPayload{Filename: "key.pem", Data: "AAH//g==", Note: "ssh key"},
 			verify: func(t *testing.T, data []byte) {
 				t.Helper()
 				got, err := unmarshalBinary(data)
 				require.NoError(t, err)
 				assert.Equal(t, "key.pem", got.Filename)
-				assert.Equal(t, []byte{0x00, 0x01, 0xFF, 0xFE}, got.Data)
+				assert.Equal(t, "AAH//g==", got.Data) // строка base64, декодирование — в команде
 			},
 		},
 	}

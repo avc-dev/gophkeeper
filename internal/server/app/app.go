@@ -2,9 +2,13 @@ package app
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -19,6 +23,8 @@ import (
 	pb "github.com/avc-dev/gophkeeper/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Run собирает зависимости и запускает gRPC сервер.
@@ -33,15 +39,34 @@ func Run(cfg config.Config, log *slog.Logger) error {
 	}
 	defer db.Close()
 
+	privKey, pubKey, err := loadEdKeys(cfg.JWTPrivateKeyFile, cfg.JWTPublicKeyFile)
+	if err != nil {
+		return fmt.Errorf("load JWT keys: %w", err)
+	}
+
 	users := userstore.New(db)
-	auth := authsvc.New(users, cfg.JWTSecret)
+	auth := authsvc.New(users, privKey, pubKey)
 
 	secrets := secretstore.New(db)
 	secretService := secretsvc.New(secrets)
 
-	srv := grpc.NewServer(
+	serverOpts := []grpc.ServerOption{
 		grpc.UnaryInterceptor(handler.AuthInterceptor(auth)),
-	)
+	}
+
+	if cfg.TLSCertFile != "" {
+		creds, err := credentials.NewServerTLSFromFile(cfg.TLSCertFile, cfg.TLSKeyFile)
+		if err != nil {
+			return fmt.Errorf("load TLS credentials: %w", err)
+		}
+		serverOpts = append(serverOpts, grpc.Creds(creds))
+		log.Info("TLS enabled", "cert", cfg.TLSCertFile)
+	} else {
+		serverOpts = append(serverOpts, grpc.Creds(insecure.NewCredentials()))
+		log.Warn("TLS is disabled — server running in insecure mode")
+	}
+
+	srv := grpc.NewServer(serverOpts...)
 	pb.RegisterAuthServiceServer(srv, authhandler.New(auth))
 	pb.RegisterSecretsServiceServer(srv, secrethandler.New(secretService))
 
@@ -67,6 +92,50 @@ func Run(cfg config.Config, log *slog.Logger) error {
 		srv.GracefulStop()
 		return nil
 	}
+}
+
+// loadEdKeys читает Ed25519 ключевую пару из PEM-файлов.
+// Приватный ключ ожидается в формате "PRIVATE KEY" (PKCS#8).
+// Публичный ключ ожидается в формате "PUBLIC KEY" (PKIX/SubjectPublicKeyInfo).
+// Генерация: openssl genpkey -algorithm ed25519 -out private.pem
+//
+//	openssl pkey -in private.pem -pubout -out public.pem
+func loadEdKeys(privPath, pubPath string) (ed25519.PrivateKey, ed25519.PublicKey, error) {
+	privPEM, err := os.ReadFile(privPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read private key %q: %w", privPath, err)
+	}
+	block, _ := pem.Decode(privPEM)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return nil, nil, fmt.Errorf("invalid PEM in %q: expected \"PRIVATE KEY\" (PKCS#8)", privPath)
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse private key: %w", err)
+	}
+	privKey, ok := key.(ed25519.PrivateKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("key in %q is not Ed25519", privPath)
+	}
+
+	pubPEM, err := os.ReadFile(pubPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read public key %q: %w", pubPath, err)
+	}
+	block, _ = pem.Decode(pubPEM)
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return nil, nil, fmt.Errorf("invalid PEM in %q: expected \"PUBLIC KEY\" (PKIX)", pubPath)
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse public key: %w", err)
+	}
+	pubKey, ok := pub.(ed25519.PublicKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("key in %q is not Ed25519", pubPath)
+	}
+
+	return privKey, pubKey, nil
 }
 
 // initDB создаёт пул соединений и проверяет доступность БД.

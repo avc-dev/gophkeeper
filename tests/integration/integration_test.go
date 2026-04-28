@@ -6,6 +6,8 @@ package integration
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"net"
 	"os"
 	"testing"
@@ -37,8 +39,13 @@ func testDSN() string {
 	return "postgres://gophkeeper:gophkeeper@localhost:5433/gophkeeper_test?sslmode=disable"
 }
 
-// jwtSecret — секрет для JWT в тестовой среде.
-const jwtSecret = "integration-test-secret"
+// testEdKeys генерирует одноразовую Ed25519 ключевую пару для тестового сервера.
+func testEdKeys(t *testing.T) (ed25519.PrivateKey, ed25519.PublicKey) {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err, "generate test Ed25519 key pair")
+	return priv, pub
+}
 
 // testServer запускает gRPC сервер на случайном порту и возвращает его адрес.
 // Сервер автоматически останавливается по завершению теста.
@@ -54,8 +61,10 @@ func testServer(t *testing.T) string {
 	_, err = db.Exec(ctx, "TRUNCATE users, secrets RESTART IDENTITY CASCADE")
 	require.NoError(t, err, "truncate tables")
 
+	privKey, pubKey := testEdKeys(t)
+
 	users := userstore.New(db)
-	auth := authsvc.New(users, jwtSecret)
+	auth := authsvc.New(users, privKey, pubKey)
 
 	secrets := secretstore.New(db)
 	secretService := secretsvc.New(secrets)

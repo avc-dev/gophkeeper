@@ -7,13 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidateToken проверяет JWT и возвращает user_id.
+// ValidateToken проверяет JWT (EdDSA/Ed25519) и возвращает user_id.
+// Проверка выполняется только публичным ключом — приватный ключ не нужен и не используется.
 func (s *Service) ValidateToken(tokenStr string) (uuid.UUID, error) {
 	t, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
+		if _, ok := t.Method.(*jwt.SigningMethodEd25519); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return s.jwtSecret, nil
+		return s.publicKey, nil
 	})
 	if err != nil || !t.Valid {
 		return uuid.Nil, fmt.Errorf("invalid token")

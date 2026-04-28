@@ -30,9 +30,11 @@ type TextPayload struct {
 }
 
 // BinaryPayload — произвольный бинарный файл, хранится зашифрованным.
+// Data содержит бинарное содержимое в явном base64-кодировании (стандарт без переносов строк).
+// Explicit encoding, а не неявный json.Marshal([]byte), чтобы было однозначно видно из типа.
 type BinaryPayload struct {
 	Filename string `json:"filename"`
-	Data     []byte `json:"data"`
+	Data     string `json:"data"` // base64-encoded binary content
 	Note     string `json:"note,omitempty"`
 }
 

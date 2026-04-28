@@ -10,8 +10,11 @@ import (
 
 // Config — конфигурация CLI-клиента.
 type Config struct {
-	ServerAddr string `env:"GOPHKEEPER_SERVER" envDefault:":8080"`
-	DBPath     string `env:"GOPHKEEPER_DB"`
+	ServerAddr    string `env:"GOPHKEEPER_SERVER"          envDefault:"localhost:8080"`
+	DBPath        string `env:"GOPHKEEPER_DB"`
+	TLSEnabled    bool   `env:"GOPHKEEPER_TLS"             envDefault:"false"`
+	TLSCACert     string `env:"GOPHKEEPER_TLS_CA"`
+	TLSSkipVerify bool   `env:"GOPHKEEPER_TLS_SKIP_VERIFY" envDefault:"false"`
 }
 
 // Load читает конфигурацию из окружения.

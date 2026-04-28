@@ -3,6 +3,8 @@ package command
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
@@ -76,8 +79,13 @@ func initApp(ctx context.Context) error {
 		return fmt.Errorf("open local db: %w", err)
 	}
 
-	conn, err := grpc.NewClient(cfg.ServerAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialCreds, err := buildTransportCredentials(cfg)
+	if err != nil {
+		db.Close()
+		return fmt.Errorf("tls credentials: %w", err)
+	}
+
+	conn, err := grpc.NewClient(cfg.ServerAddr, grpc.WithTransportCredentials(dialCreds))
 	if err != nil {
 		db.Close()
 		return fmt.Errorf("connect to server %s: %w", cfg.ServerAddr, err)
@@ -119,6 +127,38 @@ func authedContext(ctx context.Context) (context.Context, error) {
 	}
 	md := metadata.Pairs("authorization", "Bearer "+token)
 	return metadata.NewOutgoingContext(ctx, md), nil
+}
+
+// buildTransportCredentials возвращает транспортные credentials на основе конфигурации TLS.
+// При TLSEnabled=false используется insecure (только для разработки).
+// При TLSEnabled=true и TLSCACert — проверяет сертификат сервера через указанный CA.
+// При TLSEnabled=true и TLSSkipVerify=true — не проверяет сертификат (только для dev с self-signed).
+func buildTransportCredentials(cfg config.Config) (credentials.TransportCredentials, error) {
+	if !cfg.TLSEnabled {
+		return insecure.NewCredentials(), nil
+	}
+
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+
+	if cfg.TLSCACert != "" {
+		caPEM, err := os.ReadFile(cfg.TLSCACert)
+		if err != nil {
+			return nil, fmt.Errorf("read CA cert %q: %w", cfg.TLSCACert, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("invalid CA cert %q: no PEM blocks found", cfg.TLSCACert)
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	if cfg.TLSSkipVerify {
+		tlsCfg.InsecureSkipVerify = true //nolint:gosec // допустимо только для разработки с self-signed cert
+	}
+
+	return credentials.NewTLS(tlsCfg), nil
 }
 
 // readPassword читает пароль из терминала без эха.

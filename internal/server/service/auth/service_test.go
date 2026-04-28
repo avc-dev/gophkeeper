@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"testing"
 
@@ -43,8 +45,18 @@ func (m *mockStorage) FindByEmail(_ context.Context, email string) (*domain.User
 	return u, nil
 }
 
-func newTestService(store *mockStorage) *Service {
-	return New(store, "test-secret-key")
+// newTestEdKeys генерирует тестовую Ed25519 ключевую пару.
+func newTestEdKeys(t *testing.T) (ed25519.PrivateKey, ed25519.PublicKey) {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	return priv, pub
+}
+
+func newTestService(t *testing.T, store *mockStorage) *Service {
+	t.Helper()
+	priv, pub := newTestEdKeys(t)
+	return New(store, priv, pub)
 }
 
 func TestRegister(t *testing.T) {
@@ -92,7 +104,7 @@ func TestRegister(t *testing.T) {
 			if tt.setupFn != nil {
 				tt.setupFn(store)
 			}
-			svc := newTestService(store)
+			svc := newTestService(t, store)
 
 			token, salt, err := svc.Register(context.Background(), tt.email, tt.password)
 
@@ -145,7 +157,7 @@ func TestLogin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockStorage()
-			svc := newTestService(store)
+			svc := newTestService(t, store)
 
 			// предварительно регистрируем пользователя
 			_, _, err := svc.Register(context.Background(), existingEmail, existingPassword)
@@ -166,8 +178,10 @@ func TestLogin(t *testing.T) {
 }
 
 func TestValidateToken(t *testing.T) {
-	svc := newTestService(newMockStorage())
-	otherSvc := New(newMockStorage(), "different-secret")
+	svc := newTestService(t, newMockStorage())
+	// otherSvc использует другую ключевую пару — токен svc не должен проходить проверку
+	priv2, pub2 := newTestEdKeys(t)
+	otherSvc := New(newMockStorage(), priv2, pub2)
 
 	// получаем валидный токен через Register
 	validToken, _, err := svc.Register(context.Background(), "user@example.com", "password")
