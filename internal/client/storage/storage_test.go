@@ -386,6 +386,66 @@ func TestSecretUpsertSkipsPending(t *testing.T) {
 	assert.Equal(t, SyncStatusPending, got.SyncStatus)
 }
 
+func TestSecretGetByServerID(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	created, err := db.secrets.Create(ctx, newLocalSecret("github", domain.SecretTypeCredential))
+	require.NoError(t, err)
+
+	serverID := uuid.New()
+	require.NoError(t, db.secrets.MarkSynced(ctx, created.ID, serverID, 1, time.Now()))
+
+	t.Run("found by server id", func(t *testing.T) {
+		got, err := db.secrets.GetByServerID(ctx, serverID)
+		require.NoError(t, err)
+		assert.Equal(t, "github", got.Name)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := db.secrets.GetByServerID(ctx, uuid.New())
+		assert.ErrorIs(t, err, domain.ErrSecretNotFound)
+	})
+}
+
+func TestSecretPurge(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	created, err := db.secrets.Create(ctx, newLocalSecret("github", domain.SecretTypeCredential))
+	require.NoError(t, err)
+
+	serverID := uuid.New()
+	require.NoError(t, db.secrets.MarkSynced(ctx, created.ID, serverID, 1, time.Now()))
+
+	// мягкое удаление — помечает deleted=1, sync_status=pending.
+	require.NoError(t, db.secrets.Delete(ctx, created.ID))
+
+	// после Delete запись pending; Purge ожидает sync_status=synced, значит — no-op.
+	require.NoError(t, db.secrets.Purge(ctx, created.ID))
+
+	// вручную помечаем как synced для теста физического удаления.
+	_, err = db.secrets.db.ExecContext(ctx,
+		`UPDATE secrets SET sync_status = 'synced' WHERE id = ?`, created.ID.String())
+	require.NoError(t, err)
+
+	require.NoError(t, db.secrets.Purge(ctx, created.ID))
+
+	// запись должна быть физически удалена.
+	_, err = db.secrets.Get(ctx, created.ID)
+	assert.ErrorIs(t, err, domain.ErrSecretNotFound)
+}
+
+func TestCheckpoint(t *testing.T) {
+	// Checkpoint на :memory: — WAL не применяется, но код не должен упасть.
+	db, err := Open(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	err = Checkpoint(context.Background(), db)
+	require.NoError(t, err)
+}
+
 func TestListPending(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
