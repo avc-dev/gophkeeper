@@ -46,6 +46,45 @@ func TestSecretServicePushPending(t *testing.T) {
 			},
 		},
 		{
+			name: "deleted without ServerID (never synced) → purged locally",
+			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *Service) {
+				t.Helper()
+				// secret never reached the server (offline), so has no ServerID
+				require.NoError(t, svc.AddCredential(context.Background(), testKey, "local-only", "u", "p", "", ""))
+				require.NoError(t, svc.Delete(context.Background(), "local-only", domain.SecretTypeCredential))
+			},
+			verify: func(t *testing.T, svc *Service) {
+				t.Helper()
+				list, err := svc.List(context.Background(), domain.SecretTypeCredential)
+				require.NoError(t, err)
+				assert.Empty(t, list)
+			},
+		},
+		{
+			name: "update synced secret → MarkSynced with new version",
+			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *Service) {
+				t.Helper()
+				// create locally and mark it synced (simulates a prior successful push)
+				require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh3", "alice", "oldpass", "", ""))
+				sec, err := svc.secretStore.GetByName(context.Background(), "gh3", domain.SecretTypeCredential)
+				require.NoError(t, err)
+				require.NoError(t, svc.secretStore.MarkSynced(context.Background(), sec.ID, uuid.MustParse(serverUUID), 1, nowProto().AsTime()))
+				// local update — marks it pending again with the same ServerID
+				_, err = svc.secretStore.Update(context.Background(), sec.ID, []byte("new-payload"), "")
+				require.NoError(t, err)
+				// server accepts the update
+				mock.updateResp = &pb.UpdateSecretResponse{Version: 2, UpdatedAt: nowProto()}
+				mock.updateErr = nil
+			},
+			verify: func(t *testing.T, svc *Service) {
+				t.Helper()
+				sec, err := svc.secretStore.GetByName(context.Background(), "gh3", domain.SecretTypeCredential)
+				require.NoError(t, err)
+				assert.Equal(t, storage.SyncStatusSynced, sec.SyncStatus)
+				assert.Equal(t, int64(2), sec.ServerVersion)
+			},
+		},
+		{
 			name: "pushes pending delete (synced) to server → purged",
 			setup: func(t *testing.T, mock *mockSecretsGRPC, svc *Service) {
 				t.Helper()

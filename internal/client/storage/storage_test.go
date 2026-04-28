@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -434,6 +436,26 @@ func TestSecretPurge(t *testing.T) {
 	// запись должна быть физически удалена.
 	_, err = db.secrets.Get(ctx, created.ID)
 	assert.ErrorIs(t, err, domain.ErrSecretNotFound)
+}
+
+func TestOpen_FileDB(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "gophkeeper.db")
+	db, err := Open(path)
+	require.NoError(t, err)
+	defer db.Close()
+
+	// schema applied — basic query must succeed
+	_, err = db.Exec("SELECT 1 FROM secrets LIMIT 1")
+	require.NoError(t, err)
+}
+
+func TestOpen_InvalidPath(t *testing.T) {
+	// os.MkdirAll will fail if a file already occupies a path component
+	tmp := t.TempDir()
+	blocker := filepath.Join(tmp, "file")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o600))
+	_, err := Open(filepath.Join(blocker, "gophkeeper.db"))
+	require.Error(t, err)
 }
 
 func TestCheckpoint(t *testing.T) {
