@@ -7,6 +7,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Login проверяет учётные данные и выдаёт JWT-токен вместе с KDF-солью.
+// При несуществующем пользователе выполняет bcrypt-вычисление для нормализации времени ответа
+// (защита от timing-атаки user enumeration).
 func (s *Service) Login(ctx context.Context, email, password string) (token string, kdfSalt []byte, err error) {
 	user, err := s.users.FindByEmail(ctx, email)
 	if err != nil {

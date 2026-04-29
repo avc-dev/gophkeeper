@@ -13,6 +13,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// Sync загружает все секреты с сервера начиная с момента since и обновляет локальный кеш.
+// Записи со статусом pending не перезаписываются (ON CONFLICT WHERE sync_status != 'pending').
 func (s *Service) Sync(ctx context.Context, masterKey []byte, since *time.Time) error {
 	var sinceProto *timestamppb.Timestamp
 	if since != nil {

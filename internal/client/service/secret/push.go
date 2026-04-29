@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// PushPending отправляет на сервер все pending-записи.
+// Успешно отправленные записи помечаются как synced; ошибки gRPC игнорируются
+// (запись будет отправлена при следующей синхронизации).
 func (s *Service) PushPending(ctx context.Context) error {
 	pending, err := s.secretStore.ListPending(ctx)
 	if err != nil {

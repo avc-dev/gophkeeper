@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewSyncCmd возвращает cobra-команду "sync" для ручной синхронизации с сервером.
 func NewSyncCmd(app *cmdutil.App) *cobra.Command {
 	var masterPwd string
 

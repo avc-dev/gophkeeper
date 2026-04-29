@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewCopyCmd возвращает cobra-команду "copy" для копирования поля секрета в буфер обмена.
 func NewCopyCmd(app *cmdutil.App) *cobra.Command {
 	var masterPwd, field string
 

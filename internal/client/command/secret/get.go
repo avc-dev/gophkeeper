@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewGetCmd возвращает cobra-команду "get" с подкомандами credential/card/text/binary.
 func NewGetCmd(app *cmdutil.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",

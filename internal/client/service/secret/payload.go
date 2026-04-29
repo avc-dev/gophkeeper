@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// CredentialPayload — расшифрованные данные логина/пароля.
 type CredentialPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
@@ -12,6 +13,7 @@ type CredentialPayload struct {
 	Note     string `json:"note,omitempty"`
 }
 
+// CardPayload — расшифрованные данные банковской карты.
 type CardPayload struct {
 	Number string `json:"number"`
 	Holder string `json:"holder"`
@@ -21,6 +23,7 @@ type CardPayload struct {
 	Note   string `json:"note,omitempty"`
 }
 
+// TextPayload — расшифрованный произвольный текст.
 type TextPayload struct {
 	Content string `json:"content"`
 	Note    string `json:"note,omitempty"`

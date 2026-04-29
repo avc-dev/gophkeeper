@@ -12,11 +12,13 @@ type service interface {
 	Login(ctx context.Context, email, password string) (token string, kdfSalt []byte, err error)
 }
 
+// Handler реализует gRPC AuthService (регистрация и вход).
 type Handler struct {
 	pb.UnimplementedAuthServiceServer
 	svc service
 }
 
+// New создаёт Handler с переданным сервисом аутентификации.
 func New(svc service) *Handler {
 	return &Handler{svc: svc}
 }

@@ -8,6 +8,8 @@ import (
 	pb "github.com/avc-dev/gophkeeper/proto"
 )
 
+// Delete помечает секрет как удалённый локально и, при наличии соединения, удаляет его на сервере.
+// Если сервер недоступен, удаление будет выполнено при следующей синхронизации.
 func (s *Service) Delete(ctx context.Context, name string, typ domain.SecretType) error {
 	sec, err := s.secretStore.GetByName(ctx, name, typ)
 	if err != nil {

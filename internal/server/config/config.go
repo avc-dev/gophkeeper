@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
+// Config — конфигурация gRPC сервера, загружаемая из переменных окружения.
 type Config struct {
 	DSN               string `env:"DATABASE_URL"        envDefault:"postgres://gophkeeper:gophkeeper@localhost:5432/gophkeeper?sslmode=disable"`
 	JWTPrivateKeyFile string `env:"JWT_PRIVATE_KEY_FILE"`
@@ -15,6 +16,8 @@ type Config struct {
 	TLSKeyFile        string `env:"TLS_KEY_FILE"`
 }
 
+// Load читает конфигурацию из окружения. JWT_PRIVATE_KEY_FILE и JWT_PUBLIC_KEY_FILE обязательны.
+// TLS_CERT_FILE и TLS_KEY_FILE должны указываться вместе или не указываться вовсе.
 func Load() (Config, error) {
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {

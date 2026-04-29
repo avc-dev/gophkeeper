@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// Logout удаляет локальные учётные данные (JWT и kdf_salt).
 func (s *Service) Logout(ctx context.Context) error {
 	if err := s.authStore.Delete(ctx, keyJWT); err != nil {
 		return fmt.Errorf("delete jwt: %w", err)

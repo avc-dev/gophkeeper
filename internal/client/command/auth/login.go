@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewLoginCmd возвращает cobra-команду "login" для аутентификации существующего пользователя.
 func NewLoginCmd(app *cmdutil.App) *cobra.Command {
 	var email, password string
 

@@ -8,6 +8,7 @@ import (
 	"github.com/avc-dev/gophkeeper/internal/domain"
 )
 
+// GetCredential расшифровывает и возвращает данные логин/пароля из локального кеша.
 func (s *Service) GetCredential(ctx context.Context, masterKey []byte, name string) (*CredentialPayload, error) {
 	raw, err := s.decrypt(ctx, masterKey, name, domain.SecretTypeCredential)
 	if err != nil {
@@ -16,6 +17,7 @@ func (s *Service) GetCredential(ctx context.Context, masterKey []byte, name stri
 	return unmarshalCredential(raw)
 }
 
+// GetCard расшифровывает и возвращает данные карты из локального кеша.
 func (s *Service) GetCard(ctx context.Context, masterKey []byte, name string) (*CardPayload, error) {
 	raw, err := s.decrypt(ctx, masterKey, name, domain.SecretTypeCard)
 	if err != nil {
@@ -24,6 +26,7 @@ func (s *Service) GetCard(ctx context.Context, masterKey []byte, name string) (*
 	return unmarshalCard(raw)
 }
 
+// GetText расшифровывает и возвращает текст из локального кеша.
 func (s *Service) GetText(ctx context.Context, masterKey []byte, name string) (*TextPayload, error) {
 	raw, err := s.decrypt(ctx, masterKey, name, domain.SecretTypeText)
 	if err != nil {
@@ -32,6 +35,7 @@ func (s *Service) GetText(ctx context.Context, masterKey []byte, name string) (*
 	return unmarshalText(raw)
 }
 
+// GetBinary расшифровывает и возвращает бинарный файл из локального кеша.
 func (s *Service) GetBinary(ctx context.Context, masterKey []byte, name string) (*BinaryPayload, error) {
 	raw, err := s.decrypt(ctx, masterKey, name, domain.SecretTypeBinary)
 	if err != nil {

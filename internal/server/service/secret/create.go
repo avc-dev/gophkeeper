@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Create сохраняет новый секрет, проставляя ему userID.
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, sec *domain.Secret) (*domain.Secret, error) {
 	sec.UserID = userID
 	result, err := s.secrets.Create(ctx, sec)

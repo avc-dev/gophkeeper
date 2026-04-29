@@ -17,10 +17,12 @@ type storage interface {
 	Delete(ctx context.Context, userID, id uuid.UUID) error
 }
 
+// Service реализует бизнес-логику работы с секретами на сервере.
 type Service struct {
 	secrets storage
 }
 
+// New создаёт новый Service с переданным хранилищем.
 func New(secrets storage) *Service {
 	return &Service{secrets: secrets}
 }

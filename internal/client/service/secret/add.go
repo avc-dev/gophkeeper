@@ -13,21 +13,25 @@ import (
 	"github.com/google/uuid"
 )
 
+// AddCredential шифрует и сохраняет логин/пароль локально и, при наличии соединения, на сервере.
 func (s *Service) AddCredential(ctx context.Context, masterKey []byte, name, login, password, url, note string) error {
 	return s.add(ctx, masterKey, domain.SecretTypeCredential, name,
 		CredentialPayload{Login: login, Password: password, URL: url, Note: note}, "")
 }
 
+// AddCard шифрует и сохраняет данные банковской карты.
 func (s *Service) AddCard(ctx context.Context, masterKey []byte, name, number, holder, expiry, cvv, bank, note string) error {
 	return s.add(ctx, masterKey, domain.SecretTypeCard, name,
 		CardPayload{Number: number, Holder: holder, Expiry: expiry, CVV: cvv, Bank: bank, Note: note}, "")
 }
 
+// AddText шифрует и сохраняет произвольный текст.
 func (s *Service) AddText(ctx context.Context, masterKey []byte, name, content, note string) error {
 	return s.add(ctx, masterKey, domain.SecretTypeText, name,
 		TextPayload{Content: content, Note: note}, "")
 }
 
+// AddBinary шифрует и сохраняет бинарный файл (данные кодируются в base64 перед шифрованием).
 func (s *Service) AddBinary(ctx context.Context, masterKey []byte, name, filename string, data []byte, note string) error {
 	return s.add(ctx, masterKey, domain.SecretTypeBinary, name,
 		BinaryPayload{Filename: filename, Data: base64.StdEncoding.EncodeToString(data), Note: note}, "")

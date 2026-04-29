@@ -10,6 +10,7 @@ type Service struct {
 	secretStore *storage.SecretStorage
 }
 
+// New создаёт новый Service.
 func New(client pb.SecretsServiceClient, secretStore *storage.SecretStorage) *Service {
 	return &Service{client: client, secretStore: secretStore}
 }

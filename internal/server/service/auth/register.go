@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// Register создаёт нового пользователя с bcrypt-хешем пароля и Argon2id KDF-солью.
+// Возвращает JWT и KDF-соль для немедленной деривации мастер-ключа.
 func (s *Service) Register(ctx context.Context, email, password string) (token string, kdfSalt []byte, err error) {
 	hash, err := hashPassword(password)
 	if err != nil {

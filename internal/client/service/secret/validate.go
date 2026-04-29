@@ -11,14 +11,19 @@ import (
 )
 
 var (
-	ErrLuhnInvalid  = errors.New("card number failed Luhn check")
-	ErrExpiryPast   = errors.New("card expiry date is in the past")
+	// ErrLuhnInvalid возвращается, если номер карты не проходит проверку по алгоритму Луна.
+	ErrLuhnInvalid = errors.New("card number failed Luhn check")
+	// ErrExpiryPast возвращается, если срок действия карты истёк.
+	ErrExpiryPast = errors.New("card expiry date is in the past")
+	// ErrExpiryFormat возвращается, если формат срока действия не соответствует MM/YY.
 	ErrExpiryFormat = errors.New("card expiry must be MM/YY")
-	ErrCVVInvalid   = errors.New("CVV must be 3 or 4 digits")
+	// ErrCVVInvalid возвращается, если CVV-код не является трёх- или четырёхзначным числом.
+	ErrCVVInvalid = errors.New("CVV must be 3 or 4 digits")
 )
 
 var reExpiry = regexp.MustCompile(`^(0[1-9]|1[0-2])/(\d{2})$`)
 
+// ValidateCard проверяет реквизиты банковской карты: номер (алгоритм Луна), срок действия (MM/YY) и CVV.
 func ValidateCard(number, expiry, cvv string) error {
 	if err := validateLuhn(number); err != nil {
 		return err

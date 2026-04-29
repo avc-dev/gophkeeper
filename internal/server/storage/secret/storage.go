@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Storage описывает операции хранилища секретов на сервере (PostgreSQL).
 type Storage interface {
 	Create(ctx context.Context, secret *domain.Secret) (*domain.Secret, error)
 	Get(ctx context.Context, userID, id uuid.UUID) (*domain.Secret, error)
@@ -21,6 +22,7 @@ type storage struct {
 	db *pgxpool.Pool
 }
 
+// New создаёт Storage поверх пула соединений PostgreSQL.
 func New(db *pgxpool.Pool) Storage {
 	return &storage{db: db}
 }

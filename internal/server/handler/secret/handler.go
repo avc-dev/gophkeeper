@@ -21,11 +21,13 @@ type service interface {
 	Delete(ctx context.Context, userID, id uuid.UUID) error
 }
 
+// Handler реализует gRPC SecretsService (CRUD секретов).
 type Handler struct {
 	pb.UnimplementedSecretsServiceServer
 	svc service
 }
 
+// New создаёт Handler с переданным сервисом секретов.
 func New(svc service) *Handler {
 	return &Handler{svc: svc}
 }

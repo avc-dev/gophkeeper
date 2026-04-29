@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewListCmd возвращает cobra-команду "list" для вывода секретов из локального кеша.
 func NewListCmd(app *cmdutil.App) *cobra.Command {
 	var typFilter string
 

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewDeleteCmd возвращает cobra-команду "delete" для удаления секрета.
 func NewDeleteCmd(app *cmdutil.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <type> <name>",

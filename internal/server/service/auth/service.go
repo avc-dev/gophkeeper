@@ -41,6 +41,7 @@ func getDummyHash() []byte {
 	return dummyHash
 }
 
+// Service реализует аутентификацию пользователей: регистрацию, вход и проверку JWT.
 type Service struct {
 	users      userStorage
 	privateKey ed25519.PrivateKey

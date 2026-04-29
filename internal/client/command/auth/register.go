@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewRegisterCmd возвращает cobra-команду "register" для создания нового аккаунта.
 func NewRegisterCmd(app *cmdutil.App) *cobra.Command {
 	var email, password string
 
