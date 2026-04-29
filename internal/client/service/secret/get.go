@@ -44,6 +44,15 @@ func (s *Service) GetBinary(ctx context.Context, masterKey []byte, name string) 
 	return unmarshalBinary(raw)
 }
 
+// GetOTP расшифровывает и возвращает TOTP-семя из локального кеша.
+func (s *Service) GetOTP(ctx context.Context, masterKey []byte, name string) (*OTPPayload, error) {
+	raw, err := s.decrypt(ctx, masterKey, name, domain.SecretTypeOTP)
+	if err != nil {
+		return nil, fmt.Errorf("get otp %q: %w", name, err)
+	}
+	return unmarshalOTP(raw)
+}
+
 func (s *Service) decrypt(ctx context.Context, masterKey []byte, name string, typ domain.SecretType) ([]byte, error) {
 	sec, err := s.secretStore.GetByName(ctx, name, typ)
 	if err != nil {

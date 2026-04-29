@@ -30,6 +30,7 @@ const (
 	SecretType_SECRET_TYPE_CARD        SecretType = 2
 	SecretType_SECRET_TYPE_TEXT        SecretType = 3
 	SecretType_SECRET_TYPE_BINARY      SecretType = 4
+	SecretType_SECRET_TYPE_OTP         SecretType = 5
 )
 
 // Enum value maps for SecretType.
@@ -40,6 +41,7 @@ var (
 		2: "SECRET_TYPE_CARD",
 		3: "SECRET_TYPE_TEXT",
 		4: "SECRET_TYPE_BINARY",
+		5: "SECRET_TYPE_OTP",
 	}
 	SecretType_value = map[string]int32{
 		"SECRET_TYPE_UNSPECIFIED": 0,
@@ -47,6 +49,7 @@ var (
 		"SECRET_TYPE_CARD":        2,
 		"SECRET_TYPE_TEXT":        3,
 		"SECRET_TYPE_BINARY":      4,
+		"SECRET_TYPE_OTP":         5,
 	}
 )
 
@@ -812,14 +815,15 @@ const file_proto_secrets_proto_rawDesc = "" +
 	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"%\n" +
 	"\x13DeleteSecretRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
-	"\x14DeleteSecretResponse*\x89\x01\n" +
+	"\x14DeleteSecretResponse*\x9e\x01\n" +
 	"\n" +
 	"SecretType\x12\x1b\n" +
 	"\x17SECRET_TYPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16SECRET_TYPE_CREDENTIAL\x10\x01\x12\x14\n" +
 	"\x10SECRET_TYPE_CARD\x10\x02\x12\x14\n" +
 	"\x10SECRET_TYPE_TEXT\x10\x03\x12\x16\n" +
-	"\x12SECRET_TYPE_BINARY\x10\x042\x82\x04\n" +
+	"\x12SECRET_TYPE_BINARY\x10\x04\x12\x13\n" +
+	"\x0fSECRET_TYPE_OTP\x10\x052\x82\x04\n" +
 	"\x0eSecretsService\x12?\n" +
 	"\x04Ping\x12\x1a.gophkeeper.v1.PingRequest\x1a\x1b.gophkeeper.v1.PingResponse\x12W\n" +
 	"\fCreateSecret\x12\".gophkeeper.v1.CreateSecretRequest\x1a#.gophkeeper.v1.CreateSecretResponse\x12N\n" +

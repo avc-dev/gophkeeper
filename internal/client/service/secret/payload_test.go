@@ -66,6 +66,28 @@ func TestPayloadRoundTrip(t *testing.T) {
 				assert.Equal(t, "AAH//g==", got.Data)
 			},
 		},
+		{
+			name:    "otp — full fields",
+			payload: OTPPayload{Seed: "JBSWY3DPEHPK3PXP", Issuer: "GitHub", Account: "alice@example.com", Note: "work 2fa"},
+			verify: func(t *testing.T, data []byte) {
+				t.Helper()
+				got, err := unmarshalOTP(data)
+				require.NoError(t, err)
+				assert.Equal(t, OTPPayload{Seed: "JBSWY3DPEHPK3PXP", Issuer: "GitHub", Account: "alice@example.com", Note: "work 2fa"}, *got)
+			},
+		},
+		{
+			name:    "otp — only seed",
+			payload: OTPPayload{Seed: "JBSWY3DPEHPK3PXP"},
+			verify: func(t *testing.T, data []byte) {
+				t.Helper()
+				got, err := unmarshalOTP(data)
+				require.NoError(t, err)
+				assert.Equal(t, "JBSWY3DPEHPK3PXP", got.Seed)
+				assert.Empty(t, got.Issuer)
+				assert.Empty(t, got.Account)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -88,6 +110,7 @@ func TestPayloadUnmarshalInvalidJSON(t *testing.T) {
 		{"card", func(d []byte) error { _, err := unmarshalCard(d); return err }},
 		{"text", func(d []byte) error { _, err := unmarshalText(d); return err }},
 		{"binary", func(d []byte) error { _, err := unmarshalBinary(d); return err }},
+		{"otp", func(d []byte) error { _, err := unmarshalOTP(d); return err }},
 	}
 
 	for _, tt := range tests {

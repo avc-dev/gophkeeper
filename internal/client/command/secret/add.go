@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewAddCmd возвращает cobra-команду "add" с подкомандами credential/card/text/binary.
+// NewAddCmd возвращает cobra-команду "add" с подкомандами credential/card/text/binary/otp.
 func NewAddCmd(app *cmdutil.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
@@ -16,6 +16,7 @@ func NewAddCmd(app *cmdutil.App) *cobra.Command {
 		newAddCardCmd(app),
 		newAddTextCmd(app),
 		newAddBinaryCmd(app),
+		newAddOTPCmd(app),
 	)
 	return cmd
 }

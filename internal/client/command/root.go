@@ -91,6 +91,7 @@ All secrets are encrypted on the client before being sent to the server.`,
 		secretcmd.NewListCmd(app),
 		secretcmd.NewDeleteCmd(app),
 		secretcmd.NewCopyCmd(app),
+		secretcmd.NewOTPCmd(app),
 		newVersionCmd(version, buildTime),
 	)
 	return root

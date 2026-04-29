@@ -15,6 +15,7 @@ const (
 	SecretTypeCard       SecretType = "card"       // данные банковской карты
 	SecretTypeText       SecretType = "text"       // произвольный текст
 	SecretTypeBinary     SecretType = "binary"     // бинарный файл
+	SecretTypeOTP        SecretType = "otp"        // TOTP-семя для двухфакторной аутентификации
 )
 
 // Secret — зашифрованный секрет пользователя.

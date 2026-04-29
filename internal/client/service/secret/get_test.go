@@ -103,6 +103,23 @@ func TestSecretServiceGet(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "otp — decrypts correctly",
+			setup: func(t *testing.T, svc *Service) {
+				t.Helper()
+				require.NoError(t, svc.AddOTP(context.Background(), testKey, "github2fa", "JBSWY3DPEHPK3PXP", "GitHub", "alice@example.com", ""))
+			},
+			get: func(svc *Service) error {
+				got, err := svc.GetOTP(context.Background(), testKey, "github2fa")
+				if err != nil {
+					return err
+				}
+				assert.Equal(t, "JBSWY3DPEHPK3PXP", got.Seed)
+				assert.Equal(t, "GitHub", got.Issuer)
+				assert.Equal(t, "alice@example.com", got.Account)
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {

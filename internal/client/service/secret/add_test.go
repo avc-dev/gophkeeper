@@ -75,6 +75,16 @@ func TestSecretServiceAdd(t *testing.T) {
 			secretType:     domain.SecretTypeBinary,
 			wantSyncStatus: storage.SyncStatusPending,
 		},
+		{
+			name: "otp — offline",
+			mock: offlineMock(),
+			add: func(svc *Service) error {
+				return svc.AddOTP(context.Background(), testKey, "github2fa", "JBSWY3DPEHPK3PXP", "GitHub", "alice@example.com", "")
+			},
+			secretName:     "github2fa",
+			secretType:     domain.SecretTypeOTP,
+			wantSyncStatus: storage.SyncStatusPending,
+		},
 	}
 
 	for _, tt := range tests {

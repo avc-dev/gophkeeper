@@ -37,6 +37,12 @@ func (s *Service) AddBinary(ctx context.Context, masterKey []byte, name, filenam
 		BinaryPayload{Filename: filename, Data: base64.StdEncoding.EncodeToString(data), Note: note}, "")
 }
 
+// AddOTP шифрует и сохраняет TOTP-семя. Seed должен быть валидным base32-ключом.
+func (s *Service) AddOTP(ctx context.Context, masterKey []byte, name, seed, issuer, account, note string) error {
+	return s.add(ctx, masterKey, domain.SecretTypeOTP, name,
+		OTPPayload{Seed: seed, Issuer: issuer, Account: account, Note: note}, "")
+}
+
 func (s *Service) add(ctx context.Context, masterKey []byte, typ domain.SecretType, name string, payload any, metadata string) error {
 	raw, err := marshalPayload(payload)
 	if err != nil {

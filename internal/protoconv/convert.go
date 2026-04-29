@@ -16,6 +16,8 @@ func TypeToProto(t domain.SecretType) pb.SecretType {
 		return pb.SecretType_SECRET_TYPE_TEXT
 	case domain.SecretTypeBinary:
 		return pb.SecretType_SECRET_TYPE_BINARY
+	case domain.SecretTypeOTP:
+		return pb.SecretType_SECRET_TYPE_OTP
 	default:
 		return pb.SecretType_SECRET_TYPE_UNSPECIFIED
 	}
@@ -32,6 +34,8 @@ func TypeToDomain(t pb.SecretType) domain.SecretType {
 		return domain.SecretTypeText
 	case pb.SecretType_SECRET_TYPE_BINARY:
 		return domain.SecretTypeBinary
+	case pb.SecretType_SECRET_TYPE_OTP:
+		return domain.SecretTypeOTP
 	default:
 		return ""
 	}

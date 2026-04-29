@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,6 +12,9 @@ import (
 )
 
 var (
+	// ErrOTPSeedInvalid возвращается, если OTP-семя не является валидным base32-ключом.
+	ErrOTPSeedInvalid = errors.New("OTP seed is not valid base32")
+
 	// ErrLuhnInvalid возвращается, если номер карты не проходит проверку по алгоритму Луна.
 	ErrLuhnInvalid = errors.New("card number failed Luhn check")
 	// ErrExpiryPast возвращается, если срок действия карты истёк.
@@ -22,6 +26,23 @@ var (
 )
 
 var reExpiry = regexp.MustCompile(`^(0[1-9]|1[0-2])/(\d{2})$`)
+
+// ValidateOTPSeed проверяет, что seed является валидным base32-ключом TOTP.
+// Пробелы и символы нижнего регистра допустимы и нормализуются автоматически.
+func ValidateOTPSeed(seed string) error {
+	clean := strings.ToUpper(strings.ReplaceAll(seed, " ", ""))
+	if len(clean) == 0 {
+		return fmt.Errorf("%w: seed is empty", ErrOTPSeedInvalid)
+	}
+	// base32 требует длину кратную 8; дополняем знаками "=" до нужного размера
+	if rem := len(clean) % 8; rem != 0 {
+		clean += strings.Repeat("=", 8-rem)
+	}
+	if _, err := base32.StdEncoding.DecodeString(clean); err != nil {
+		return fmt.Errorf("%w: %s", ErrOTPSeedInvalid, err)
+	}
+	return nil
+}
 
 // ValidateCard проверяет реквизиты банковской карты: номер (алгоритм Луна), срок действия (MM/YY) и CVV.
 func ValidateCard(number, expiry, cvv string) error {

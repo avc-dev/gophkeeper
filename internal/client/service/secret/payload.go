@@ -37,6 +37,15 @@ type BinaryPayload struct {
 	Note     string `json:"note,omitempty"`
 }
 
+// OTPPayload хранит TOTP-семя для двухфакторной аутентификации.
+// Seed — base32-encoded секретный ключ (RFC 4648, без пробелов).
+type OTPPayload struct {
+	Seed    string `json:"seed"`
+	Issuer  string `json:"issuer,omitempty"`
+	Account string `json:"account,omitempty"`
+	Note    string `json:"note,omitempty"`
+}
+
 func marshalPayload(v any) ([]byte, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -73,6 +82,14 @@ func unmarshalBinary(data []byte) (*BinaryPayload, error) {
 	var p BinaryPayload
 	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("unmarshal binary: %w", err)
+	}
+	return &p, nil
+}
+
+func unmarshalOTP(data []byte) (*OTPPayload, error) {
+	var p OTPPayload
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("unmarshal otp: %w", err)
 	}
 	return &p, nil
 }
