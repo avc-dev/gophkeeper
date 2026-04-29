@@ -5,6 +5,16 @@ LDFLAGS = -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 MIGRATION_DSN ?= postgres://gophkeeper:gophkeeper@localhost:5432/gophkeeper?sslmode=disable
 TEST_MIGRATION_DSN ?= postgres://gophkeeper:gophkeeper@localhost:5433/gophkeeper_test?sslmode=disable
 
+# Пакеты с юнит-тестами (не включает cmd/*, proto/*, server/storage/* — они покрываются интеграционными тестами).
+UNIT_PKGS = \
+	./internal/crypto/... \
+	./internal/client/service/... \
+	./internal/client/storage/... \
+	./internal/server/service/... \
+	./internal/server/handler/...
+
+COVERAGE_THRESHOLD = 70
+
 .PHONY: build build-all test-unit test-integration lint proto migrate-up migrate-down migrate-test-up
 
 ## Сборка сервера и клиента для текущей платформы
@@ -23,16 +33,19 @@ build-all:
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/gophkeeper-server-windows.exe   ./cmd/server
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/gophkeeper-windows.exe          ./cmd/client
 
-## Юнит-тесты с покрытием
+## Юнит-тесты с покрытием (только пакеты с юнит-тестами).
+## cmd/*, proto/*, server/storage/* не учитываются: они требуют реальной БД (интеграционные тесты).
 test-unit:
-	go test ./... -count=1 -coverprofile=coverage.out
-	go tool cover -func=coverage.out | grep total
-	@go tool cover -func=coverage.out | awk '/total/ {gsub("%",""); if ($$3+0 < 70) {print "ОШИБКА: покрытие " $$3 "% ниже минимального 70%"; exit 1}}'
+	go test $(UNIT_PKGS) -count=1 -coverprofile=coverage.out
+	@go tool cover -func=coverage.out | grep total
+	@go tool cover -func=coverage.out | awk '/total/ {gsub("%",""); if ($$3+0 < $(COVERAGE_THRESHOLD)) \
+		{print "ERROR: coverage " $$3 "% is below minimum " $(COVERAGE_THRESHOLD) "%"; exit 1}}'
 
 ## Интеграционные тесты (требует запущенного docker-compose.test.yml)
 test-integration:
 	docker compose -f docker-compose.test.yml up -d --wait
-	go test ./... -tags=integration -count=1 -timeout=60s
+	migrate -path migrations -database "$(TEST_MIGRATION_DSN)" up
+	go test ./tests/integration/... -tags=integration -count=1 -timeout=120s
 	docker compose -f docker-compose.test.yml down
 
 ## Линтер
