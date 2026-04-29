@@ -468,6 +468,15 @@ func TestCheckpoint(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCheckpoint_ClosedDB(t *testing.T) {
+	db, err := Open(":memory:")
+	require.NoError(t, err)
+	db.Close() // закрываем до Checkpoint
+
+	err = Checkpoint(context.Background(), db)
+	require.Error(t, err)
+}
+
 func TestListPending(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()

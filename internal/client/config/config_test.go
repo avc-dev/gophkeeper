@@ -37,3 +37,15 @@ func TestLoad_DBPath_DefaultsToUserConfigDir(t *testing.T) {
 	assert.Contains(t, cfg.DBPath, "gophkeeper")
 	assert.Contains(t, cfg.DBPath, "local.db")
 }
+
+func TestLoad_DBPath_FallsBackToDot_WhenNoHome(t *testing.T) {
+	t.Setenv("GOPHKEEPER_DB", "")
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("AppData", "") // Windows guard
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	// when UserConfigDir fails, dir = "." so DBPath starts with "."
+	assert.Contains(t, cfg.DBPath, "local.db")
+}

@@ -104,6 +104,28 @@ func TestAddTextCmd(t *testing.T) {
 	assert.Contains(t, out.String(), `"note" saved`)
 }
 
+func TestAddTextCmd_FromFile(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "note.txt")
+	require.NoError(t, os.WriteFile(tmp, []byte("file content"), 0o600))
+
+	app, _, _ := newTestApp(t)
+	loginApp(t, app)
+
+	cmd := NewAddCmd(app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{
+		"text",
+		"--name", "note2",
+		"--file", tmp,
+		"--master-password", testMasterPwd,
+	})
+
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+	assert.Contains(t, out.String(), `"note2" saved`)
+}
+
 func TestAddTextCmd_MissingContent(t *testing.T) {
 	app, _, _ := newTestApp(t)
 	loginApp(t, app)

@@ -3,6 +3,7 @@ package app
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"os"
@@ -80,20 +81,68 @@ func TestLoadEdKeys_InvalidPublicPEM(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestLoadEdKeys_WrongKeyType(t *testing.T) {
-	// Write private key with wrong PEM block type to trigger "not Ed25519" error
+func TestLoadEdKeys_WrongPrivateBlockType(t *testing.T) {
 	dir := t.TempDir()
 	_, pubPath := writeKeyPair(t, dir)
 
-	// Use PUBLIC KEY block type where PRIVATE KEY is expected
-	privPath := filepath.Join(dir, "wrong_type.pem")
+	// Valid PKCS8 DER but mislabelled block type — triggers "not PRIVATE KEY" check
 	_, realPriv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	der, err := x509.MarshalPKCS8PrivateKey(realPriv)
 	require.NoError(t, err)
-	// deliberately mislabel as "CERTIFICATE" so pem.Decode gives wrong block.Type
+	privPath := filepath.Join(dir, "wrong_type.pem")
 	require.NoError(t, os.WriteFile(privPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
 
 	_, _, err = loadEdKeys(privPath, pubPath)
 	require.Error(t, err)
+}
+
+func TestLoadEdKeys_PrivateKeyNotEd25519(t *testing.T) {
+	dir := t.TempDir()
+	_, pubPath := writeKeyPair(t, dir)
+
+	// RSA key in valid PKCS8 format — passes ParsePKCS8PrivateKey but fails type assertion
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(rsaKey)
+	require.NoError(t, err)
+	privPath := filepath.Join(dir, "rsa_private.pem")
+	require.NoError(t, os.WriteFile(privPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600))
+
+	_, _, err = loadEdKeys(privPath, pubPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not Ed25519")
+}
+
+func TestLoadEdKeys_WrongPublicBlockType(t *testing.T) {
+	dir := t.TempDir()
+	privPath, _ := writeKeyPair(t, dir)
+
+	// Valid PKIX DER but mislabelled block type — triggers "not PUBLIC KEY" check
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+	pubPath := filepath.Join(dir, "wrong_pub_type.pem")
+	require.NoError(t, os.WriteFile(pubPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
+
+	_, _, err = loadEdKeys(privPath, pubPath)
+	require.Error(t, err)
+}
+
+func TestLoadEdKeys_PublicKeyNotEd25519(t *testing.T) {
+	dir := t.TempDir()
+	privPath, _ := writeKeyPair(t, dir)
+
+	// RSA public key in valid PKIX format — passes ParsePKIXPublicKey but fails type assertion
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKIXPublicKey(&rsaKey.PublicKey)
+	require.NoError(t, err)
+	pubPath := filepath.Join(dir, "rsa_public.pem")
+	require.NoError(t, os.WriteFile(pubPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), 0o600))
+
+	_, _, err = loadEdKeys(privPath, pubPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not Ed25519")
 }
