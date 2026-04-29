@@ -6,10 +6,13 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/avc-dev/gophkeeper/internal/server/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +35,23 @@ func writeKeyPair(t *testing.T, dir string) (privPath, pubPath string) {
 
 	return privPath, pubPath
 }
+
+// ─── Run ─────────────────────────────────────────────────────────────────────
+
+func TestRun_DBUnavailable(t *testing.T) {
+	// Port 19999 on localhost is almost certainly not running Postgres.
+	// pgxpool.New succeeds (lazy), but Ping fails immediately with connection refused.
+	cfg := config.Config{
+		DSN: "postgres://localhost:19999/testdb",
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	err := Run(cfg, log)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "run:")
+}
+
+// ─── loadEdKeys ───────────────────────────────────────────────────────────────
 
 func TestLoadEdKeys_Success(t *testing.T) {
 	dir := t.TempDir()
@@ -79,6 +99,36 @@ func TestLoadEdKeys_InvalidPublicPEM(t *testing.T) {
 
 	_, _, err := loadEdKeys(privPath, pubPath)
 	require.Error(t, err)
+}
+
+func TestLoadEdKeys_InvalidPrivateDER(t *testing.T) {
+	dir := t.TempDir()
+	_, pubPath := writeKeyPair(t, dir)
+
+	// correct block type, but DER bytes are garbage → ParsePKCS8PrivateKey fails
+	privPath := filepath.Join(dir, "bad_der_private.pem")
+	require.NoError(t, os.WriteFile(privPath,
+		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("not-valid-der")}),
+		0o600))
+
+	_, _, err := loadEdKeys(privPath, pubPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse private key")
+}
+
+func TestLoadEdKeys_InvalidPublicDER(t *testing.T) {
+	dir := t.TempDir()
+	privPath, _ := writeKeyPair(t, dir)
+
+	// correct block type, but DER bytes are garbage → ParsePKIXPublicKey fails
+	pubPath := filepath.Join(dir, "bad_der_public.pem")
+	require.NoError(t, os.WriteFile(pubPath,
+		pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("not-valid-der")}),
+		0o600))
+
+	_, _, err := loadEdKeys(privPath, pubPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse public key")
 }
 
 func TestLoadEdKeys_WrongPrivateBlockType(t *testing.T) {

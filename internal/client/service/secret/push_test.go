@@ -2,6 +2,7 @@ package secret
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/avc-dev/gophkeeper/internal/client/storage"
@@ -117,4 +118,40 @@ func TestSecretServicePushPending(t *testing.T) {
 			tt.verify(t, svc)
 		})
 	}
+}
+
+func TestPushPending_ListPendingError(t *testing.T) {
+	mock := offlineMock()
+	svc, db := newTestServiceWithDB(t, mock)
+	db.Close() // force all storage calls to fail
+
+	err := svc.PushPending(context.Background())
+	require.Error(t, err)
+}
+
+func TestPushPending_UpdateError(t *testing.T) {
+	serverUUID := uuid.New().String()
+	mock := offlineMock()
+	svc := newTestService(t, mock)
+
+	// create + sync so secret has a ServerID
+	mock.createErr = nil
+	mock.createResp = &pb.CreateSecretResponse{Id: serverUUID, Version: 1, CreatedAt: nowProto()}
+	require.NoError(t, svc.AddCredential(context.Background(), testKey, "gh", "alice", "pass", "", ""))
+	require.NoError(t, svc.PushPending(context.Background()))
+
+	// local update → marks pending again
+	sec, err := svc.secretStore.GetByName(context.Background(), "gh", domain.SecretTypeCredential)
+	require.NoError(t, err)
+	_, err = svc.secretStore.Update(context.Background(), sec.ID, []byte("updated"), "")
+	require.NoError(t, err)
+
+	// server rejects update — PushPending skips it silently
+	mock.updateErr = errors.New("conflict")
+	require.NoError(t, svc.PushPending(context.Background()))
+
+	// secret remains pending
+	sec, err = svc.secretStore.GetByName(context.Background(), "gh", domain.SecretTypeCredential)
+	require.NoError(t, err)
+	assert.Equal(t, storage.SyncStatusPending, sec.SyncStatus)
 }

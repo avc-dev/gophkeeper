@@ -3,6 +3,7 @@ package secret
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -52,10 +53,16 @@ var testKey = bytes.Repeat([]byte{0x42}, 32)
 
 func newTestService(t *testing.T, client pb.SecretsServiceClient) *Service {
 	t.Helper()
+	svc, _ := newTestServiceWithDB(t, client)
+	return svc
+}
+
+func newTestServiceWithDB(t *testing.T, client pb.SecretsServiceClient) (*Service, *sql.DB) {
+	t.Helper()
 	db, err := storage.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
-	return New(client, storage.NewSecretStorage(db))
+	return New(client, storage.NewSecretStorage(db)), db
 }
 
 func offlineMock() *mockSecretsGRPC {
